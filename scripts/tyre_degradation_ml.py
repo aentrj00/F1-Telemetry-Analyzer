@@ -24,15 +24,80 @@ if not os.path.exists('output_tire_ml'):
 ff1.Cache.enable_cache('cache')
 
 # ============================================
+# CIRCUIT CHARACTERISTICS DATABASE
+# ============================================
+
+CIRCUIT_DATA = {
+    'Bahrain': {'type': 'permanent', 'avg_speed': 'medium', 'corners': 15, 'length_km': 5.412, 'typical_weather': 'hot_dry', 'surface': 'abrasive'},
+    'Jeddah': {'type': 'street', 'avg_speed': 'high', 'corners': 27, 'length_km': 6.174, 'typical_weather': 'hot_dry', 'surface': 'smooth'},
+    'Australia': {'type': 'semi-permanent', 'avg_speed': 'medium', 'corners': 14, 'length_km': 5.278, 'typical_weather': 'temperate', 'surface': 'medium'},
+    'Baku': {'type': 'street', 'avg_speed': 'high', 'corners': 20, 'length_km': 6.003, 'typical_weather': 'temperate', 'surface': 'smooth'},
+    'Miami': {'type': 'street', 'avg_speed': 'medium', 'corners': 19, 'length_km': 5.412, 'typical_weather': 'hot_humid', 'surface': 'medium'},
+    'Monaco': {'type': 'street', 'avg_speed': 'low', 'corners': 19, 'length_km': 3.337, 'typical_weather': 'temperate', 'surface': 'smooth'},
+    'Spain': {'type': 'permanent', 'avg_speed': 'medium', 'corners': 16, 'length_km': 4.675, 'typical_weather': 'hot_dry', 'surface': 'abrasive'},
+    'Canada': {'type': 'semi-permanent', 'avg_speed': 'high', 'corners': 14, 'length_km': 4.361, 'typical_weather': 'variable', 'surface': 'smooth'},
+    'Austria': {'type': 'permanent', 'avg_speed': 'high', 'corners': 10, 'length_km': 4.318, 'typical_weather': 'temperate', 'surface': 'medium'},
+    'Britain': {'type': 'permanent', 'avg_speed': 'high', 'corners': 18, 'length_km': 5.891, 'typical_weather': 'variable', 'surface': 'medium'},
+    'Hungary': {'type': 'permanent', 'avg_speed': 'low', 'corners': 14, 'length_km': 4.381, 'typical_weather': 'hot_dry', 'surface': 'abrasive'},
+    'Belgium': {'type': 'permanent', 'avg_speed': 'high', 'corners': 19, 'length_km': 7.004, 'typical_weather': 'variable', 'surface': 'medium'},
+    'Netherlands': {'type': 'permanent', 'avg_speed': 'medium', 'corners': 14, 'length_km': 4.259, 'typical_weather': 'cool', 'surface': 'medium'},
+    'Italy': {'type': 'permanent', 'avg_speed': 'high', 'corners': 11, 'length_km': 5.793, 'typical_weather': 'hot_dry', 'surface': 'smooth'},
+    'Singapore': {'type': 'street', 'avg_speed': 'low', 'corners': 23, 'length_km': 5.063, 'typical_weather': 'hot_humid', 'surface': 'smooth'},
+    'Japan': {'type': 'permanent', 'avg_speed': 'medium', 'corners': 18, 'length_km': 5.807, 'typical_weather': 'temperate', 'surface': 'medium'},
+    'Qatar': {'type': 'permanent', 'avg_speed': 'high', 'corners': 16, 'length_km': 5.380, 'typical_weather': 'hot_dry', 'surface': 'abrasive'},
+    'United States': {'type': 'permanent', 'avg_speed': 'medium', 'corners': 20, 'length_km': 5.513, 'typical_weather': 'hot_dry', 'surface': 'abrasive'},
+    'Mexico': {'type': 'permanent', 'avg_speed': 'medium', 'corners': 17, 'length_km': 4.304, 'typical_weather': 'temperate', 'surface': 'smooth'},
+    'Brazil': {'type': 'permanent', 'avg_speed': 'medium', 'corners': 15, 'length_km': 4.309, 'typical_weather': 'variable', 'surface': 'abrasive'},
+    'Las Vegas': {'type': 'street', 'avg_speed': 'high', 'corners': 17, 'length_km': 6.120, 'typical_weather': 'cool', 'surface': 'smooth'},
+    'Abu Dhabi': {'type': 'permanent', 'avg_speed': 'medium', 'corners': 16, 'length_km': 5.281, 'typical_weather': 'hot_dry', 'surface': 'smooth'}
+}
+
+def encode_circuit_features(gp_name):
+    circuit = None
+    for key in CIRCUIT_DATA.keys():
+        if key.lower() in gp_name.lower():
+            circuit = CIRCUIT_DATA[key]
+            break
+    
+    if circuit is None:
+        circuit = {'type': 'permanent', 'avg_speed': 'medium', 'corners': 15, 'length_km': 5.0, 'typical_weather': 'temperate', 'surface': 'medium'}
+    
+    type_encoding = {'street': 0, 'semi-permanent': 1, 'permanent': 2}
+    speed_encoding = {'low': 0, 'medium': 1, 'high': 2}
+    weather_encoding = {'cool': 0, 'temperate': 1, 'hot_dry': 2, 'hot_humid': 3, 'variable': 4, 'wet': 5}
+    surface_encoding = {'smooth': 0, 'medium': 1, 'abrasive': 2}
+    
+    return {
+        'circuit_type': type_encoding.get(circuit['type'], 2),
+        'circuit_speed': speed_encoding.get(circuit['avg_speed'], 1),
+        'circuit_corners': circuit['corners'],
+        'circuit_length': circuit['length_km'],
+        'circuit_weather_type': weather_encoding.get(circuit['typical_weather'], 1),
+        'circuit_surface': surface_encoding.get(circuit['surface'], 1)
+    }
+
+# ============================================
 # HELPER FUNCTIONS
 # ============================================
 
+def load_all_sessions(year, gp):
+    sessions = []
+    session_types = ['FP1', 'FP2', 'FP3', 'Q', 'R']
+    
+    print(f"\nLoading all sessions for {gp} GP {year}...")
+    
+    for session_type in session_types:
+        try:
+            session = ff1.get_session(int(year), gp, session_type)
+            session.load()
+            sessions.append({'type': session_type, 'session': session})
+            print(f"  ✓ {session_type} loaded")
+        except Exception as e:
+            print(f"  ✗ {session_type} not available: {str(e)[:50]}")
+    
+    return sessions
+
 def detect_stints(laps):
-    """
-    Detects different stints (runs with same tire)
-    Each pit stop = new stint
-    Returns list of DataFrames, one per stint
-    """
     stints = []
     current_stint = []
     
@@ -52,129 +117,168 @@ def detect_stints(laps):
     return stints
 
 def calculate_pit_stop_time(laps):
-    """
-    Calculates average pit stop time from actual race data
-    Uses difference between PitInTime and PitOutTime
-    """
     pit_times = []
     
     for idx, lap in laps.iterrows():
         if pd.notna(lap['PitInTime']) and pd.notna(lap['PitOutTime']):
             pit_duration = (lap['PitOutTime'] - lap['PitInTime']).total_seconds()
-            if 15 < pit_duration < 60:  # Sanity check (15-60 seconds)
+            if 15 < pit_duration < 60:
                 pit_times.append(pit_duration)
     
-    if pit_times:
-        return np.mean(pit_times)
-    else:
-        # Fallback: estimate based on circuit
-        return 23.0  # Typical F1 pit stop with pit lane time
+    return np.mean(pit_times) if pit_times else 23.0
 
-def prepare_ml_features(laps, session, total_race_laps):
+def prepare_ml_features_from_sessions(sessions_data, gp_name, target_driver=None, sessions_to_use=None):
     """
-    Prepares features for machine learning model
-    Returns DataFrame with features and target
+    Prepares ML features from multiple sessions
+    
+    Args:
+        sessions_data: List of session dictionaries
+        gp_name: Grand Prix name
+        target_driver: If specified, only use this driver's data
+        sessions_to_use: List of session types to use (e.g., ['R'] for race only)
+                        If None, uses all sessions
     """
-    features_list = []
+    all_features = []
+    circuit_features = encode_circuit_features(gp_name)
     
-    weather_data = session.weather_data
-    
-    for idx, lap in laps.iterrows():
-        lap_number = lap['LapNumber']
-        lap_time = lap['LapTime']
+    for session_data in sessions_data:
+        session = session_data['session']
+        session_type = session_data['type']
         
-        if pd.isna(lap_time):
+        # Filter by session type if specified
+        if sessions_to_use is not None and session_type not in sessions_to_use:
+            print(f"\n  Skipping {session_type} (not in filter)")
             continue
         
-        lap_time_seconds = lap_time.total_seconds()
-        lap_start_time = lap['LapStartTime']
+        print(f"\n  Processing {session_type}...")
         
-        # Get weather at this lap
-        try:
-            weather_at_lap = weather_data[weather_data['Time'] <= lap_start_time].iloc[-1]
-            track_temp = weather_at_lap['TrackTemp']
-            air_temp = weather_at_lap['AirTemp']
-        except:
-            track_temp = 30.0
-            air_temp = 25.0
+        if target_driver:
+            try:
+                laps = session.laps.pick_drivers(target_driver)
+            except:
+                print(f"    ✗ Driver {target_driver} not found in {session_type}")
+                continue
+        else:
+            laps = session.laps
         
-        # Get compound
-        try:
-            compound = lap['Compound']
-            if pd.isna(compound):
+        laps = laps[laps['LapTime'].notna()]
+        
+        if len(laps) == 0:
+            print(f"    ✗ No valid laps in {session_type}")
+            continue
+        
+        print(f"    → {len(laps)} valid laps")
+        
+        weather_data = session.weather_data
+        total_laps = laps['LapNumber'].max() if session_type == 'R' else 60
+        
+        for idx, lap in laps.iterrows():
+            lap_number = lap['LapNumber']
+            lap_time = lap['LapTime']
+            
+            if pd.isna(lap_time):
+                continue
+            
+            lap_time_seconds = lap_time.total_seconds()
+            
+            if lap_time_seconds > 200:
+                continue
+            
+            lap_start_time = lap['LapStartTime']
+            
+            try:
+                weather_at_lap = weather_data[weather_data['Time'] <= lap_start_time].iloc[-1]
+                track_temp = weather_at_lap['TrackTemp']
+                air_temp = weather_at_lap['AirTemp']
+                try:
+                    wind_speed = weather_at_lap['WindSpeed']
+                    if pd.isna(wind_speed):
+                        wind_speed = 0.0
+                except:
+                    wind_speed = 0.0
+            except:
+                track_temp = 30.0
+                air_temp = 25.0
+                wind_speed = 0.0
+            
+            try:
+                compound = lap['Compound']
+                if pd.isna(compound):
+                    compound = 'MEDIUM'
+            except:
                 compound = 'MEDIUM'
-        except:
-            compound = 'MEDIUM'
-        
-        # Encode compound: SOFT=0, MEDIUM=1, HARD=2
-        compound_encoded = {'SOFT': 0, 'MEDIUM': 1, 'HARD': 2, 
-                           'INTERMEDIATE': 3, 'WET': 4}.get(compound, 1)
-        
-        # Get tire age
-        try:
-            tire_life = lap['TyreLife']
-            if pd.isna(tire_life):
+            
+            compound_encoded = {'SOFT': 0, 'MEDIUM': 1, 'HARD': 2, 'INTERMEDIATE': 3, 'WET': 4}.get(compound, 1)
+            
+            try:
+                tire_life = lap['TyreLife']
+                if pd.isna(tire_life):
+                    tire_life = 1
+            except:
                 tire_life = 1
-        except:
-            tire_life = 1
-        
-        # Estimate fuel load (starts at ~110kg, decreases linearly)
-        fuel_load = 110 - (lap_number / total_race_laps) * 110
-        
-        # Track evolution (rubber buildup makes track faster)
-        track_evolution = lap_number / total_race_laps
-        
-        features_list.append({
-            'lap_number': lap_number,
-            'tire_age': tire_life,
-            'compound': compound_encoded,
-            'track_temp': track_temp,
-            'air_temp': air_temp,
-            'fuel_load': fuel_load,
-            'track_evolution': track_evolution,
-            'lap_time': lap_time_seconds,
-            'compound_name': compound
-        })
+            
+            fuel_load = 110 - (lap_number / total_laps) * 110 if session_type == 'R' else 10.0
+            track_evolution = lap_number / total_laps
+            session_encoding = {'FP1': 0, 'FP2': 1, 'FP3': 2, 'Q': 3, 'R': 4}.get(session_type, 4)
+            
+            all_features.append({
+                'tire_age': tire_life,
+                'compound': compound_encoded,
+                'track_temp': track_temp,
+                'air_temp': air_temp,
+                'wind_speed': wind_speed,
+                'fuel_load': fuel_load,
+                'track_evolution': track_evolution,
+                'session_type': session_encoding,
+                **circuit_features,
+                'lap_time': lap_time_seconds,
+                'compound_name': compound,
+                'session_name': session_type
+            })
     
-    df = pd.DataFrame(features_list)
+    df = pd.DataFrame(all_features)
     
-    # Remove outliers (traffic, incidents)
+    if len(df) == 0:
+        return None, None
+    
     mean_time = df['lap_time'].mean()
     std_time = df['lap_time'].std()
-    df['outlier'] = np.abs(df['lap_time'] - mean_time) > 2 * std_time
+    df['outlier'] = np.abs(df['lap_time'] - mean_time) > 2.5 * std_time
     
     df_clean = df[~df['outlier']].copy()
+    
+    print(f"\n  Total samples: {len(df)}")
+    print(f"  After removing outliers: {len(df_clean)}")
     
     return df_clean, df
 
 def train_ml_model(features_df):
-    """
-    Trains Random Forest model for lap time prediction
-    Returns trained model and performance metrics
-    """
-    feature_columns = ['tire_age', 'compound', 'track_temp', 
-                      'air_temp', 'fuel_load', 'track_evolution']
+    feature_columns = [
+        'tire_age', 'compound', 
+        'track_temp', 'air_temp', 'wind_speed',
+        'fuel_load', 'track_evolution', 'session_type',
+        'circuit_type', 'circuit_speed', 'circuit_corners', 
+        'circuit_length', 'circuit_weather_type', 'circuit_surface'
+    ]
     
     X = features_df[feature_columns]
     y = features_df['lap_time']
     
-    # Split train/test
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, shuffle=True
     )
     
-    # Train Random Forest
     model = RandomForestRegressor(
-        n_estimators=100,
-        max_depth=10,
-        min_samples_split=5,
+        n_estimators=200,
+        max_depth=15,
+        min_samples_split=10,
+        min_samples_leaf=5,
         random_state=42,
         n_jobs=-1
     )
     
     model.fit(X_train, y_train)
     
-    # Evaluate
     y_pred_train = model.predict(X_train)
     y_pred_test = model.predict(X_test)
     
@@ -193,140 +297,175 @@ def train_ml_model(features_df):
         'feature_importance': feature_importance
     }
     
-    return model, metrics
+    return model, metrics, feature_columns
 
-def optimize_race_strategy(model, avg_conditions, total_race_laps, pit_stop_time):
+def optimize_race_strategy(model, feature_columns, avg_conditions, circuit_features, 
+                          total_race_laps, pit_stop_time, max_tire_age_seen):
     """
-    Optimizes complete race strategy
-    Compares 1-stop, 2-stop, 3-stop strategies
-    Returns best strategy with total race time
+    Optimizes race strategy - LIMITED to realistic tire ages
     """
-    
     strategies = []
     
-    # ============================================
-    # STRATEGY 1: ONE-STOP
-    # ============================================
+    # CRITICAL: Limit stint length to what we've actually seen in data
+    # Don't extrapolate beyond training data
+    max_stint_length = min(int(max_tire_age_seen * 0.95), int(total_race_laps * 0.7))
     
-    # Try different pit windows for 1-stop
-    for pit_lap in range(int(total_race_laps * 0.3), int(total_race_laps * 0.7), 2):
-        
-        total_time = 0
-        
-        # Stint 1: Start to pit (MEDIUM)
-        for lap in range(1, pit_lap + 1):
-            features = np.array([[
-                lap,  # tire_age
-                1,    # MEDIUM compound
-                avg_conditions['track_temp'],
-                avg_conditions['air_temp'],
-                110 - (lap / total_race_laps) * 110,
-                lap / total_race_laps
-            ]])
-            lap_time = model.predict(features)[0]
-            total_time += lap_time
-        
-        # Pit stop
-        total_time += pit_stop_time
-        
-        # Stint 2: After pit to finish (HARD)
-        stint2_laps = total_race_laps - pit_lap
-        for lap_in_stint in range(1, stint2_laps + 1):
-            race_lap = pit_lap + lap_in_stint
-            features = np.array([[
-                lap_in_stint,  # tire_age (reset after pit)
-                2,    # HARD compound
-                avg_conditions['track_temp'],
-                avg_conditions['air_temp'],
-                110 - (race_lap / total_race_laps) * 110,
-                race_lap / total_race_laps
-            ]])
-            lap_time = model.predict(features)[0]
-            total_time += lap_time
-        
-        strategies.append({
-            'type': '1-STOP',
-            'pit_laps': [pit_lap],
-            'stints': [
-                {'laps': pit_lap, 'compound': 'MEDIUM', 'compound_code': 1},
-                {'laps': stint2_laps, 'compound': 'HARD', 'compound_code': 2}
-            ],
-            'total_time': total_time,
-            'num_pit_stops': 1
-        })
+    print(f"\n  ⚠ IMPORTANT: Limiting strategies to tire_age ≤ {max_stint_length} laps")
+    print(f"    (Max tire_age in training data: {max_tire_age_seen} laps)")
+    print(f"    Model cannot reliably predict beyond this range\n")
     
-    # ============================================
-    # STRATEGY 2: TWO-STOP
-    # ============================================
-    
-    # Try different pit windows for 2-stop
-    pit1_range = range(int(total_race_laps * 0.25), int(total_race_laps * 0.4), 3)
-    pit2_range_base = range(int(total_race_laps * 0.5), int(total_race_laps * 0.75), 3)
-    
-    for pit1 in pit1_range:
-        for pit2 in pit2_range_base:
-            if pit2 <= pit1 + 10:  # Minimum stint length
+    # 1-STOP strategies (only if feasible)
+    if max_stint_length >= total_race_laps * 0.4:
+        for pit_lap in range(int(total_race_laps * 0.3), min(max_stint_length, int(total_race_laps * 0.7)), 2):
+            
+            # Check if both stints are within limits
+            stint2_laps = total_race_laps - pit_lap
+            if stint2_laps > max_stint_length:
                 continue
-                
+            
             total_time = 0
             
             # Stint 1: MEDIUM
-            for lap in range(1, pit1 + 1):
-                features = np.array([[
-                    lap, 1,
-                    avg_conditions['track_temp'],
-                    avg_conditions['air_temp'],
-                    110 - (lap / total_race_laps) * 110,
-                    lap / total_race_laps
-                ]])
-                total_time += model.predict(features)[0]
+            for lap in range(1, pit_lap + 1):
+                features = {
+                    'tire_age': lap,
+                    'compound': 1,
+                    'track_temp': avg_conditions['track_temp'],
+                    'air_temp': avg_conditions['air_temp'],
+                    'wind_speed': avg_conditions['wind_speed'],
+                    'fuel_load': 110 - (lap / total_race_laps) * 110,
+                    'track_evolution': lap / total_race_laps,
+                    'session_type': 4,
+                    **circuit_features
+                }
+                
+                features_array = np.array([[features[col] for col in feature_columns]])
+                lap_time = model.predict(features_array)[0]
+                total_time += lap_time
             
             total_time += pit_stop_time
             
             # Stint 2: HARD
-            stint2_length = pit2 - pit1
-            for lap_in_stint in range(1, stint2_length + 1):
-                race_lap = pit1 + lap_in_stint
-                features = np.array([[
-                    lap_in_stint, 2,
-                    avg_conditions['track_temp'],
-                    avg_conditions['air_temp'],
-                    110 - (race_lap / total_race_laps) * 110,
-                    race_lap / total_race_laps
-                ]])
-                total_time += model.predict(features)[0]
+            for lap_in_stint in range(1, stint2_laps + 1):
+                race_lap = pit_lap + lap_in_stint
+                features = {
+                    'tire_age': lap_in_stint,
+                    'compound': 2,
+                    'track_temp': avg_conditions['track_temp'],
+                    'air_temp': avg_conditions['air_temp'],
+                    'wind_speed': avg_conditions['wind_speed'],
+                    'fuel_load': 110 - (race_lap / total_race_laps) * 110,
+                    'track_evolution': race_lap / total_race_laps,
+                    'session_type': 4,
+                    **circuit_features
+                }
+                
+                features_array = np.array([[features[col] for col in feature_columns]])
+                lap_time = model.predict(features_array)[0]
+                total_time += lap_time
+            
+            strategies.append({
+                'type': '1-STOP',
+                'pit_laps': [pit_lap],
+                'stints': [
+                    {'laps': pit_lap, 'compound': 'MEDIUM'},
+                    {'laps': stint2_laps, 'compound': 'HARD'}
+                ],
+                'total_time': total_time,
+                'num_pit_stops': 1
+            })
+    
+    # 2-STOP strategies (always feasible)
+    pit1_range = range(int(total_race_laps * 0.25), min(max_stint_length, int(total_race_laps * 0.4)), 3)
+    pit2_range = range(int(total_race_laps * 0.5), min(max_stint_length + 20, int(total_race_laps * 0.75)), 3)
+    
+    for pit1 in pit1_range:
+        for pit2 in pit2_range:
+            if pit2 <= pit1 + 10:
+                continue
+            
+            stint1_len = pit1
+            stint2_len = pit2 - pit1
+            stint3_len = total_race_laps - pit2
+            
+            # Check all stints are within limits
+            if stint1_len > max_stint_length or stint2_len > max_stint_length or stint3_len > max_stint_length:
+                continue
+                
+            total_time = 0
+            
+            # Stint 1
+            for lap in range(1, pit1 + 1):
+                features = {
+                    'tire_age': lap,
+                    'compound': 1,
+                    'track_temp': avg_conditions['track_temp'],
+                    'air_temp': avg_conditions['air_temp'],
+                    'wind_speed': avg_conditions['wind_speed'],
+                    'fuel_load': 110 - (lap / total_race_laps) * 110,
+                    'track_evolution': lap / total_race_laps,
+                    'session_type': 4,
+                    **circuit_features
+                }
+                features_array = np.array([[features[col] for col in feature_columns]])
+                total_time += model.predict(features_array)[0]
             
             total_time += pit_stop_time
             
-            # Stint 3: HARD
-            stint3_length = total_race_laps - pit2
-            for lap_in_stint in range(1, stint3_length + 1):
+            # Stint 2
+            for lap_in_stint in range(1, stint2_len + 1):
+                race_lap = pit1 + lap_in_stint
+                features = {
+                    'tire_age': lap_in_stint,
+                    'compound': 2,
+                    'track_temp': avg_conditions['track_temp'],
+                    'air_temp': avg_conditions['air_temp'],
+                    'wind_speed': avg_conditions['wind_speed'],
+                    'fuel_load': 110 - (race_lap / total_race_laps) * 110,
+                    'track_evolution': race_lap / total_race_laps,
+                    'session_type': 4,
+                    **circuit_features
+                }
+                features_array = np.array([[features[col] for col in feature_columns]])
+                total_time += model.predict(features_array)[0]
+            
+            total_time += pit_stop_time
+            
+            # Stint 3
+            for lap_in_stint in range(1, stint3_len + 1):
                 race_lap = pit2 + lap_in_stint
-                features = np.array([[
-                    lap_in_stint, 2,
-                    avg_conditions['track_temp'],
-                    avg_conditions['air_temp'],
-                    110 - (race_lap / total_race_laps) * 110,
-                    race_lap / total_race_laps
-                ]])
-                total_time += model.predict(features)[0]
+                features = {
+                    'tire_age': lap_in_stint,
+                    'compound': 2,
+                    'track_temp': avg_conditions['track_temp'],
+                    'air_temp': avg_conditions['air_temp'],
+                    'wind_speed': avg_conditions['wind_speed'],
+                    'fuel_load': 110 - (race_lap / total_race_laps) * 110,
+                    'track_evolution': race_lap / total_race_laps,
+                    'session_type': 4,
+                    **circuit_features
+                }
+                features_array = np.array([[features[col] for col in feature_columns]])
+                total_time += model.predict(features_array)[0]
             
             strategies.append({
                 'type': '2-STOP',
                 'pit_laps': [pit1, pit2],
                 'stints': [
-                    {'laps': pit1, 'compound': 'MEDIUM', 'compound_code': 1},
-                    {'laps': stint2_length, 'compound': 'HARD', 'compound_code': 2},
-                    {'laps': stint3_length, 'compound': 'HARD', 'compound_code': 2}
+                    {'laps': pit1, 'compound': 'MEDIUM'},
+                    {'laps': stint2_len, 'compound': 'HARD'},
+                    {'laps': stint3_len, 'compound': 'HARD'}
                 ],
                 'total_time': total_time,
                 'num_pit_stops': 2
             })
     
-    # Find best strategy
-    best_strategy = min(strategies, key=lambda x: x['total_time'])
+    if len(strategies) == 0:
+        print("\n  ⚠ WARNING: No valid strategies found within tire_age limits!")
+        print("    Model needs more data with longer stints to optimize strategy.")
+        return None
     
-    # Get top 5 alternatives
+    best_strategy = min(strategies, key=lambda x: x['total_time'])
     top_strategies = sorted(strategies, key=lambda x: x['total_time'])[:5]
     
     return {
@@ -334,18 +473,14 @@ def optimize_race_strategy(model, avg_conditions, total_race_laps, pit_stop_time
         'all_strategies': top_strategies
     }
 
-def simulate_actual_strategy(stints, model, avg_conditions, total_race_laps, pit_stop_time):
-    """
-    Simulates the actual strategy the driver used
-    Returns estimated total race time
-    """
+def simulate_actual_strategy(stints, model, feature_columns, avg_conditions, 
+                            circuit_features, total_race_laps, pit_stop_time):
     total_time = 0
     actual_stints_info = []
     
     for stint_idx, stint in enumerate(stints):
         stint_laps = len(stint)
         
-        # Get compound
         try:
             compound_name = stint.iloc[0]['Compound']
             if pd.isna(compound_name):
@@ -355,32 +490,30 @@ def simulate_actual_strategy(stints, model, avg_conditions, total_race_laps, pit
         
         compound_code = {'SOFT': 0, 'MEDIUM': 1, 'HARD': 2}.get(compound_name, 1)
         
-        # Get starting lap number
         try:
             start_lap = stint.iloc[0]['LapNumber']
         except:
             start_lap = sum([len(s) for s in stints[:stint_idx]]) + stint_idx + 1
         
-        # Simulate this stint
-        stint_time = 0
         for lap_in_stint in range(1, stint_laps + 1):
             race_lap = start_lap + lap_in_stint - 1
             
-            features = np.array([[
-                lap_in_stint,
-                compound_code,
-                avg_conditions['track_temp'],
-                avg_conditions['air_temp'],
-                110 - (race_lap / total_race_laps) * 110,
-                race_lap / total_race_laps
-            ]])
+            features = {
+                'tire_age': lap_in_stint,
+                'compound': compound_code,
+                'track_temp': avg_conditions['track_temp'],
+                'air_temp': avg_conditions['air_temp'],
+                'wind_speed': avg_conditions['wind_speed'],
+                'fuel_load': 110 - (race_lap / total_race_laps) * 110,
+                'track_evolution': race_lap / total_race_laps,
+                'session_type': 4,
+                **circuit_features
+            }
             
-            lap_time = model.predict(features)[0]
-            stint_time += lap_time
+            features_array = np.array([[features[col] for col in feature_columns]])
+            lap_time = model.predict(features_array)[0]
+            total_time += lap_time
         
-        total_time += stint_time
-        
-        # Add pit stop time (except after last stint)
         if stint_idx < len(stints) - 1:
             total_time += pit_stop_time
         
@@ -397,48 +530,7 @@ def simulate_actual_strategy(stints, model, avg_conditions, total_race_laps, pit
         'num_pit_stops': len(stints) - 1
     }
 
-def predict_future_laps(model, last_lap_features, num_laps=10):
-    """
-    Predicts lap times for future laps
-    """
-    predictions = []
-    
-    for i in range(1, num_laps + 1):
-        future_features = last_lap_features.copy()
-        future_features['tire_age'] += i
-        future_features['fuel_load'] = max(0, future_features['fuel_load'] - 2.0 * i)
-        future_features['track_evolution'] = min(1.0, future_features['track_evolution'] + 0.01 * i)
-        
-        features_array = np.array([[
-            future_features['tire_age'],
-            future_features['compound'],
-            future_features['track_temp'],
-            future_features['air_temp'],
-            future_features['fuel_load'],
-            future_features['track_evolution']
-        ]])
-        
-        pred = model.predict(features_array)[0]
-        
-        # Estimate uncertainty
-        std_dev = 0.15
-        
-        predictions.append({
-            'lap_offset': i,
-            'predicted_time': pred,
-            'lower_bound': pred - 1.96 * std_dev,
-            'upper_bound': pred + 1.96 * std_dev
-        })
-    
-    return predictions
-
-def analyze_stint_with_ml(stint_df, model):
-    """
-    Complete ML analysis of a single stint
-    """
-    feature_columns = ['tire_age', 'compound', 'track_temp', 
-                      'air_temp', 'fuel_load', 'track_evolution']
-    
+def analyze_stint_with_ml(stint_df, model, feature_columns):
     X = stint_df[feature_columns]
     y_true = stint_df['lap_time'].values
     y_pred = model.predict(X)
@@ -446,32 +538,16 @@ def analyze_stint_with_ml(stint_df, model):
     r2 = r2_score(y_true, y_pred)
     mae = mean_absolute_error(y_true, y_pred)
     
-    # Also calculate linear degradation for reference
     slope, intercept, r_value, p_value, std_err = stats.linregress(
         stint_df['tire_age'], stint_df['lap_time']
     )
-    
-    # Future predictions
-    last_lap = stint_df.iloc[-1]
-    last_features = {
-        'tire_age': last_lap['tire_age'],
-        'compound': last_lap['compound'],
-        'track_temp': last_lap['track_temp'],
-        'air_temp': last_lap['air_temp'],
-        'fuel_load': last_lap['fuel_load'],
-        'track_evolution': last_lap['track_evolution']
-    }
-    
-    future_predictions = predict_future_laps(model, last_features, num_laps=15)
     
     return {
         'predictions': y_pred,
         'r2_score': r2,
         'mae': mae,
         'linear_slope': slope,
-        'linear_intercept': intercept,
-        'future_predictions': future_predictions,
-        'compound': last_lap['compound_name']
+        'compound': stint_df['compound_name'].iloc[-1]
     }
 
 # ============================================
@@ -479,26 +555,11 @@ def analyze_stint_with_ml(stint_df, model):
 # ============================================
 
 drivers_info = {
-    'VER': 'Max Verstappen',
-    'PER': 'Sergio Perez',
-    'LEC': 'Charles Leclerc',
-    'SAI': 'Carlos Sainz',
-    'NOR': 'Lando Norris',
-    'PIA': 'Oscar Piastri',
-    'HAM': 'Lewis Hamilton',
-    'RUS': 'George Russell',
-    'ALO': 'Fernando Alonso',
-    'STR': 'Lance Stroll',
-    'OCO': 'Esteban Ocon',
-    'GAS': 'Pierre Gasly',
-    'TSU': 'Yuki Tsunoda',
-    'RIC': 'Daniel Ricciardo',
-    'HUL': 'Nico Hulkenberg',
-    'MAG': 'Kevin Magnussen',
-    'ALB': 'Alexander Albon',
-    'SAR': 'Logan Sargeant',
-    'BOT': 'Valtteri Bottas',
-    'ZHO': 'Zhou Guanyu'
+    'VER': 'Max Verstappen', 'PER': 'Sergio Perez', 'LEC': 'Charles Leclerc', 'SAI': 'Carlos Sainz',
+    'NOR': 'Lando Norris', 'PIA': 'Oscar Piastri', 'HAM': 'Lewis Hamilton', 'RUS': 'George Russell',
+    'ALO': 'Fernando Alonso', 'STR': 'Lance Stroll', 'OCO': 'Esteban Ocon', 'GAS': 'Pierre Gasly',
+    'TSU': 'Yuki Tsunoda', 'RIC': 'Daniel Ricciardo', 'HUL': 'Nico Hulkenberg', 'MAG': 'Kevin Magnussen',
+    'ALB': 'Alexander Albon', 'SAR': 'Logan Sargeant', 'BOT': 'Valtteri Bottas', 'ZHO': 'Zhou Guanyu'
 }
 
 # ============================================
@@ -506,8 +567,8 @@ drivers_info = {
 # ============================================
 
 print("=" * 70)
-print("ML TIRE STRATEGY OPTIMIZER")
-print("Advanced tire degradation analysis with Machine Learning")
+print("ML TIRE STRATEGY OPTIMIZER - PROFESSIONAL EDITION")
+print("Multi-session training with circuit characteristics")
 print("=" * 70)
 
 print("\nAvailable drivers:")
@@ -516,84 +577,101 @@ for code, name in sorted(drivers_info.items()):
 
 print("\n" + "=" * 70)
 
-year = input("\nYear (e.g., 2024): ").strip()
-if not year:
-    year = '2024'
-
-gp = input("Grand Prix (e.g., Bahrain, Monaco, Monza): ").strip()
-if not gp:
-    gp = 'Bahrain'
-
+year = input("\nYear (e.g., 2024): ").strip() or '2024'
+gp = input("Grand Prix (e.g., Bahrain, Hungary, Monaco): ").strip() or 'Bahrain'
 driver = input("Driver to analyze (e.g., VER): ").strip().upper()
 
 if driver not in drivers_info:
     print("\nError: Invalid driver code")
     exit()
 
+use_all_drivers = input("\nTrain model with ALL drivers? (recommended) [Y/n]: ").strip().upper()
+train_driver = None if use_all_drivers != 'N' else driver
+
+if train_driver is None:
+    print(f"  → Training with ALL drivers' data (better predictions)")
+else:
+    print(f"  → Training with only {train_driver}'s data")
+
+# CRITICAL: Ask if user wants to train only with race data
+use_race_only = input("\nTrain ONLY with Race data? (more accurate predictions) [Y/n]: ").strip().upper()
+if use_race_only != 'N':
+    print(f"  → Training ONLY with Race session data (excludes FP/Q)")
+    print(f"  → This gives more accurate race predictions")
+    sessions_to_use = ['R']
+else:
+    print(f"  → Training with ALL sessions (FP1/FP2/FP3/Q/R)")
+    sessions_to_use = None
+
 print("\n" + "=" * 70)
-print(f"Loading race: {year} - {gp} GP")
+print(f"Loading data: {year} - {gp} GP")
 print(f"Analyzing: {drivers_info[driver]}")
 print("=" * 70)
 
-try:
-    session = ff1.get_session(int(year), gp, 'R')
-    session.load()
-    print("Race loaded successfully\n")
-except Exception as e:
-    print(f"\nError loading session: {e}")
+# Load sessions
+sessions_data = load_all_sessions(year, gp)
+
+if len(sessions_data) == 0:
+    print("\nError: No sessions could be loaded")
     exit()
 
-# ============================================
-# EXTRACT RACE PARAMETERS
-# ============================================
+print(f"\n✓ Successfully loaded {len(sessions_data)} sessions")
 
-# Get total race laps (actual from session)
-all_laps = session.laps
-total_race_laps = int(all_laps['LapNumber'].max())
-
-print(f"Race parameters:")
-print(f"  Total laps: {total_race_laps}")
-
-# Calculate pit stop time from data
-laps = session.laps.pick_drivers(driver)
-pit_stop_time = calculate_pit_stop_time(laps)
-print(f"  Average pit stop time: {pit_stop_time:.1f}s")
-
-# ============================================
-# DATA PREPARATION
-# ============================================
-
+# Data preparation
 print("\n" + "=" * 70)
-print("STEP 1: DATA PREPARATION")
+print("STEP 1: DATA PREPARATION FROM ALL SESSIONS")
 print("=" * 70)
 
+features_df, full_df = prepare_ml_features_from_sessions(
+    sessions_data, gp, target_driver=train_driver, sessions_to_use=sessions_to_use
+)
+
+if features_df is None or len(features_df) < 50:
+    print("\nError: Not enough data to train model")
+    exit()
+
+# CRITICAL: Calculate max tire_age seen in data
+max_tire_age_seen = int(features_df['tire_age'].max())
+
+print(f"\n✓ Total training samples: {len(features_df)}")
+print(f"  Maximum tire_age in data: {max_tire_age_seen} laps")
+print(f"  Sessions breakdown:")
+for session_name in features_df['session_name'].unique():
+    count = len(features_df[features_df['session_name'] == session_name])
+    print(f"    {session_name}: {count} laps")
+
+# Get race session
+race_session = next((s['session'] for s in sessions_data if s['type'] == 'R'), None)
+
+if race_session is None:
+    print("\nError: Race session not found")
+    exit()
+
+laps = race_session.laps.pick_drivers(driver)
 laps = laps[laps['LapTime'].notna()]
-print(f"Total laps by {driver}: {len(laps)}")
-
-features_df, full_df = prepare_ml_features(laps, session, total_race_laps)
-
-outliers_removed = len(full_df) - len(features_df)
-print(f"Outliers removed (traffic/incidents): {outliers_removed}")
-print(f"Clean laps for ML training: {len(features_df)}")
-
+total_race_laps = int(race_session.laps['LapNumber'].max())
+pit_stop_time = calculate_pit_stop_time(laps)
 stints = detect_stints(laps)
-print(f"Stints detected: {len(stints)}")
 
-# Calculate average conditions
+print(f"\nRace parameters:")
+print(f"  Total laps: {total_race_laps}")
+print(f"  Pit stop time: {pit_stop_time:.1f}s")
+print(f"  Stints by {driver}: {len(stints)}")
+
 avg_conditions = {
-    'track_temp': features_df['track_temp'].mean(),
-    'air_temp': features_df['air_temp'].mean()
+    'track_temp': features_df[features_df['session_name'] == 'R']['track_temp'].mean(),
+    'air_temp': features_df[features_df['session_name'] == 'R']['air_temp'].mean(),
+    'wind_speed': features_df[features_df['session_name'] == 'R']['wind_speed'].mean()
 }
 
-# ============================================
-# ML MODEL TRAINING
-# ============================================
+circuit_features = encode_circuit_features(gp)
 
+# ML training
 print("\n" + "=" * 70)
 print("STEP 2: TRAINING MACHINE LEARNING MODEL")
 print("=" * 70)
 
-model, metrics = train_ml_model(features_df)
+model, metrics, feature_columns = train_ml_model(features_df)
 
 print(f"\nModel Performance:")
 print(f"  Training R²:   {metrics['train_r2']:.4f}")
@@ -601,25 +679,29 @@ print(f"  Testing R²:    {metrics['test_r2']:.4f}")
 print(f"  Training MAE:  {metrics['train_mae']:.4f} seconds")
 print(f"  Testing MAE:   {metrics['test_mae']:.4f} seconds")
 
-print(f"\nFeature Importance:")
-for feature, importance in sorted(metrics['feature_importance'].items(), 
-                                  key=lambda x: x[1], reverse=True):
-    print(f"  {feature:20} {importance:.4f} ({importance*100:.1f}%)")
+quality = "EXCELLENT" if metrics['test_r2'] > 0.8 else "GOOD" if metrics['test_r2'] > 0.6 else "MODERATE" if metrics['test_r2'] > 0.4 else "LOW"
+print(f"  → {quality} model quality")
 
-# ============================================
-# STRATEGY OPTIMIZATION
-# ============================================
+print(f"\nTop 10 Most Important Features:")
+for i, (feat, imp) in enumerate(sorted(metrics['feature_importance'].items(), key=lambda x: x[1], reverse=True)[:10], 1):
+    print(f"  {i:2d}. {feat:25} {imp*100:5.1f}%")
 
+# Strategy optimization
 print("\n" + "=" * 70)
 print("STEP 3: OPTIMIZING RACE STRATEGY")
 print("=" * 70)
 
-print(f"\nSimulating different strategies for {total_race_laps}-lap race...")
-print(f"Pit stop time: {pit_stop_time:.1f}s")
+print(f"\nSimulating strategies for {total_race_laps}-lap race...")
+print(f"Conditions: Track {avg_conditions['track_temp']:.1f}°C, Air {avg_conditions['air_temp']:.1f}°C, Wind {avg_conditions['wind_speed']:.1f} km/h")
 
 optimal_strategies = optimize_race_strategy(
-    model, avg_conditions, total_race_laps, pit_stop_time
+    model, feature_columns, avg_conditions, circuit_features,
+    total_race_laps, pit_stop_time, max_tire_age_seen
 )
+
+if optimal_strategies is None:
+    print("\nCannot optimize strategy - insufficient tire degradation data")
+    exit()
 
 best = optimal_strategies['best_strategy']
 
@@ -627,36 +709,33 @@ print(f"\nBEST STRATEGY: {best['type']}")
 for i, stint in enumerate(best['stints'], 1):
     print(f"  Stint {i}: {stint['laps']} laps ({stint['compound']})")
     if i < len(best['stints']):
-        print(f"  PIT STOP {i} (after lap {sum([s['laps'] for s in best['stints'][:i]])}) → +{pit_stop_time:.1f}s")
+        cumulative_laps = sum([s['laps'] for s in best['stints'][:i]])
+        print(f"  PIT STOP {i} (after lap {cumulative_laps}) → +{pit_stop_time:.1f}s")
 
 total_minutes = int(best['total_time'] // 60)
 total_seconds = best['total_time'] % 60
-print(f"\nEstimated total race time: {best['total_time']:.1f}s ({total_minutes}:{total_seconds:05.2f})")
+print(f"\nPredicted total race time: {best['total_time']:.1f}s ({total_minutes}:{total_seconds:05.2f})")
 print(f"Pit time lost: {best['num_pit_stops'] * pit_stop_time:.1f}s ({best['num_pit_stops']} stops)")
 
-# ============================================
-# ACTUAL STRATEGY ANALYSIS
-# ============================================
-
+# Actual strategy
 print(f"\nACTUAL STRATEGY USED:")
 actual_simulation = simulate_actual_strategy(
-    stints, model, avg_conditions, total_race_laps, pit_stop_time
+    stints, model, feature_columns, avg_conditions, circuit_features,
+    total_race_laps, pit_stop_time
 )
 
 for stint in actual_simulation['stints']:
     print(f"  Stint {stint['stint_number']}: {stint['laps']} laps ({stint['compound']})")
     if stint['stint_number'] < len(actual_simulation['stints']):
-        print(f"  PIT STOP {stint['stint_number']} (after lap {stint['start_lap'] + stint['laps'] - 1}) → +{pit_stop_time:.1f}s")
+        end_lap = stint['start_lap'] + stint['laps'] - 1
+        print(f"  PIT STOP {stint['stint_number']} (after lap {end_lap}) → +{pit_stop_time:.1f}s")
 
 actual_minutes = int(actual_simulation['total_time'] // 60)
 actual_seconds = actual_simulation['total_time'] % 60
-print(f"\nEstimated total race time: {actual_simulation['total_time']:.1f}s ({actual_minutes}:{actual_seconds:05.2f})")
+print(f"\nPredicted total race time: {actual_simulation['total_time']:.1f}s ({actual_minutes}:{actual_seconds:05.2f})")
 print(f"Pit time lost: {actual_simulation['num_pit_stops'] * pit_stop_time:.1f}s ({actual_simulation['num_pit_stops']} stops)")
 
-# ============================================
-# COMPARISON
-# ============================================
-
+# Comparison
 time_diff = actual_simulation['total_time'] - best['total_time']
 
 print(f"\n{'='*70}")
@@ -670,22 +749,25 @@ elif time_diff > 0:
     print(f"  Time lost: {time_diff:.1f}s compared to best strategy")
     print(f"  Could have finished {time_diff:.1f}s faster with {best['type']}")
 else:
-    print(f"ℹ Actual strategy was {abs(time_diff):.1f}s faster than ML prediction")
-    print(f"  (Model may be conservative)")
+    print(f"ℹ Actual strategy was {abs(time_diff):.1f}s faster than prediction")
+    print(f"\n  WHY? The model is conservative with long stints:")
+    print(f"    - Best strategy has stint length: {max([s['laps'] for s in best['stints']])} laps")
+    print(f"    - Max tire_age in training: {max_tire_age_seen} laps")
+    print(f"    - Actual strategy kept all stints ≤ {max([s['laps'] for s in actual_simulation['stints']])} laps")
+    print(f"    - Fresh tires every {np.mean([s['laps'] for s in actual_simulation['stints']]):.0f} laps is faster!")
 
-# Show alternative strategies
 print(f"\nTOP 5 ALTERNATIVE STRATEGIES:")
 for i, strat in enumerate(optimal_strategies['all_strategies'][:5], 1):
     time_vs_best = strat['total_time'] - best['total_time']
     stints_str = " → ".join([f"{s['laps']}L {s['compound']}" for s in strat['stints']])
-    print(f"  {i}. {strat['type']:7} | {stints_str:40} | {strat['total_time']:.1f}s (+{time_vs_best:.1f}s)")
+    print(f"  {i}. {strat['type']:7} | {stints_str:45} | {strat['total_time']:.1f}s (+{time_vs_best:.1f}s)")
 
 # ============================================
-# STINT ANALYSIS
+# STINT ANALYSIS & VISUALIZATION
 # ============================================
 
 print("\n" + "=" * 70)
-print("STEP 4: ANALYZING EACH STINT")
+print("STEP 4: ANALYZING STINTS")
 print("=" * 70)
 
 stint_analyses = []
@@ -693,22 +775,60 @@ stint_analyses = []
 for idx, stint in enumerate(stints, 1):
     print(f"\nStint {idx}:")
     
-    stint_features, _ = prepare_ml_features(stint, session, total_race_laps)
+    # Prepare features for this stint
+    stint_features_list = []
+    for _, lap in stint.iterrows():
+        try:
+            tire_life = lap['TyreLife'] if not pd.isna(lap['TyreLife']) else 1
+            compound = lap['Compound'] if not pd.isna(lap['Compound']) else 'MEDIUM'
+            compound_encoded = {'SOFT': 0, 'MEDIUM': 1, 'HARD': 2}.get(compound, 1)
+            lap_number = lap['LapNumber']
+            lap_time_seconds = lap['LapTime'].total_seconds()
+            
+            # Get weather
+            lap_start_time = lap['LapStartTime']
+            try:
+                weather_at_lap = race_session.weather_data[race_session.weather_data['Time'] <= lap_start_time].iloc[-1]
+                track_temp = weather_at_lap['TrackTemp']
+                air_temp = weather_at_lap['AirTemp']
+                wind_speed = weather_at_lap['WindSpeed'] if not pd.isna(weather_at_lap['WindSpeed']) else 0.0
+            except:
+                track_temp = avg_conditions['track_temp']
+                air_temp = avg_conditions['air_temp']
+                wind_speed = avg_conditions['wind_speed']
+            
+            stint_features_list.append({
+                'tire_age': tire_life,
+                'compound': compound_encoded,
+                'track_temp': track_temp,
+                'air_temp': air_temp,
+                'wind_speed': wind_speed,
+                'fuel_load': 110 - (lap_number / total_race_laps) * 110,
+                'track_evolution': lap_number / total_race_laps,
+                'session_type': 4,
+                **circuit_features,
+                'lap_time': lap_time_seconds,
+                'compound_name': compound
+            })
+        except:
+            continue
     
-    if len(stint_features) < 5:
-        print(f"  Skipped (not enough clean laps)")
+    if len(stint_features_list) < 5:
+        print(f"  Skipped (not enough laps)")
         continue
     
-    analysis = analyze_stint_with_ml(stint_features, model)
+    stint_df = pd.DataFrame(stint_features_list)
+    
+    analysis = analyze_stint_with_ml(stint_df, model, feature_columns)
     
     stint_analyses.append({
         'stint_number': idx,
-        'stint_data': stint_features,
+        'stint_data': stint_df,
         'analysis': analysis
     })
     
     print(f"  Compound: {analysis['compound']}")
-    print(f"  Laps: {len(stint_features)}")
+    print(f"  Laps: {len(stint_df)}")
     print(f"  ML R² score: {analysis['r2_score']:.4f}")
     print(f"  ML MAE: {analysis['mae']:.4f} seconds")
     print(f"  Linear degradation: {analysis['linear_slope']:.4f} s/lap")
@@ -730,108 +850,136 @@ compound_colors = {
 }
 
 num_stints = len(stint_analyses)
-fig_height = 6 * num_stints
 
-fig, axes = plt.subplots(num_stints, 1, figsize=(18, fig_height))
-
-if num_stints == 1:
-    axes = [axes]
-
-for idx, stint_info in enumerate(stint_analyses):
-    ax = axes[idx]
+if num_stints > 0:
+    fig_height = 6 * num_stints
+    fig, axes = plt.subplots(num_stints, 1, figsize=(18, fig_height))
     
-    stint_data = stint_info['stint_data']
-    analysis = stint_info['analysis']
-    stint_num = stint_info['stint_number']
+    if num_stints == 1:
+        axes = [axes]
     
-    tire_age = stint_data['tire_age'].values
-    actual_times = stint_data['lap_time'].values
-    predicted_times = analysis['predictions']
-    
-    compound = analysis['compound']
-    color = compound_colors.get(compound, 'gray')
-    edge_color = 'black' if color in ['yellow', 'white'] else color
-    
-    # Actual lap times
-    ax.scatter(tire_age, actual_times, c=color, edgecolors=edge_color,
-              s=150, alpha=0.8, linewidth=2, zorder=5, label='Actual lap times')
-    
-    # ML prediction
-    ax.plot(tire_age, predicted_times, 'b--', linewidth=2.5, 
-           alpha=0.7, label='ML prediction', zorder=4)
-    
-    # Confidence interval
-    residuals = actual_times - predicted_times
-    std_residuals = np.std(residuals)
-    
-    ax.fill_between(tire_age, 
-                    predicted_times - 1.96 * std_residuals,
-                    predicted_times + 1.96 * std_residuals,
-                    alpha=0.2, color='blue', label='95% confidence')
-    
-    # Future predictions
-    if analysis['future_predictions']:
-        future_data = analysis['future_predictions']
-        future_ages = tire_age[-1] + np.array([p['lap_offset'] for p in future_data])
-        future_times = [p['predicted_time'] for p in future_data]
-        future_lower = [p['lower_bound'] for p in future_data]
-        future_upper = [p['upper_bound'] for p in future_data]
+    for idx, stint_info in enumerate(stint_analyses):
+        ax = axes[idx]
         
-        ax.plot(future_ages, future_times, 'r-', linewidth=3, 
-               alpha=0.8, label='Future prediction', zorder=6)
+        stint_data = stint_info['stint_data']
+        analysis = stint_info['analysis']
+        stint_num = stint_info['stint_number']
         
-        ax.fill_between(future_ages, future_lower, future_upper,
-                       alpha=0.2, color='red')
+        tire_age = stint_data['tire_age'].values
+        actual_times = stint_data['lap_time'].values
+        predicted_times = analysis['predictions']
+        
+        compound = analysis['compound']
+        color = compound_colors.get(compound, 'gray')
+        edge_color = 'black' if color in ['yellow', 'white'] else color
+        
+        # Actual lap times
+        ax.scatter(tire_age, actual_times, c=color, edgecolors=edge_color,
+                  s=150, alpha=0.8, linewidth=2, zorder=5, label='Actual lap times')
+        
+        # ML prediction
+        ax.plot(tire_age, predicted_times, 'b--', linewidth=2.5, 
+               alpha=0.7, label='ML prediction', zorder=4)
+        
+        # Confidence interval
+        residuals = actual_times - predicted_times
+        std_residuals = np.std(residuals)
+        
+        ax.fill_between(tire_age, 
+                        predicted_times - 1.96 * std_residuals,
+                        predicted_times + 1.96 * std_residuals,
+                        alpha=0.2, color='blue', label='95% confidence')
+        
+        ax.set_xlabel('Tire Age (laps)', fontsize=13, fontweight='bold')
+        ax.set_ylabel('Lap Time (seconds)', fontsize=13, fontweight='bold')
+        ax.set_title(f'Stint {stint_num} - {compound} Tires | ML R²={analysis["r2_score"]:.3f} | MAE={analysis["mae"]:.3f}s',
+                    fontsize=14, fontweight='bold', pad=15)
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.legend(loc='best', fontsize=10, framealpha=0.95)
     
-    ax.set_xlabel('Tire Age (laps)', fontsize=13, fontweight='bold')
-    ax.set_ylabel('Lap Time (seconds)', fontsize=13, fontweight='bold')
-    ax.set_title(f'Stint {stint_num} - {compound} Tires | ML R²={analysis["r2_score"]:.3f} | MAE={analysis["mae"]:.3f}s',
-                fontsize=14, fontweight='bold', pad=15)
-    ax.grid(True, alpha=0.3, linestyle='--')
-    ax.legend(loc='best', fontsize=9, framealpha=0.95)
-
-fig.suptitle(f'ML Tire Degradation Analysis - {gp} GP {year}\n' +
-             f'{drivers_info[driver]} ({driver})',
-             fontsize=17, fontweight='bold', y=0.995)
-
-plt.tight_layout(rect=[0, 0.02, 1, 0.99])
-
-filename = f'output_tire_ml/{gp}_{year}_{driver}_ML_analysis.png'
-plt.savefig(filename, dpi=300, bbox_inches='tight')
-print(f"\nVisualization saved: {filename}")
-
-plt.show(block=True)
+    fig.suptitle(f'ML Tire Degradation Analysis - {gp} GP {year}\n{drivers_info[driver]} ({driver})',
+                 fontsize=17, fontweight='bold', y=0.995)
+    
+    plt.tight_layout(rect=[0, 0.02, 1, 0.99])
+    
+    filename = f'output_tire_ml/{gp}_{year}_{driver}_ML_analysis.png'
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+    print(f"\n✓ Visualization saved: {filename}")
+    
+    plt.show(block=True)
+else:
+    print("\n⚠ No stints to visualize")
 
 # ============================================
-# FINAL REPORT
+# SUMMARY
 # ============================================
 
 print("\n" + "=" * 70)
-print("SUMMARY REPORT")
+print("SUMMARY")
 print("=" * 70)
 
 print(f"\nRace: {gp} GP {year} ({total_race_laps} laps)")
 print(f"Driver: {drivers_info[driver]} ({driver})")
 print(f"Weather: Track {avg_conditions['track_temp']:.1f}°C, Air {avg_conditions['air_temp']:.1f}°C")
 
-print(f"\nML Model Quality:")
-print(f"  Test R²: {metrics['test_r2']:.3f}")
-if metrics['test_r2'] > 0.7:
-    print(f"  → Reliable predictions")
-elif metrics['test_r2'] > 0.4:
-    print(f"  → Moderate reliability")
-else:
-    print(f"  → Low reliability (high variance in data)")
+circuit_info = next((CIRCUIT_DATA[k] for k in CIRCUIT_DATA if k.lower() in gp.lower()), None)
+if circuit_info:
+    print(f"\nCircuit Characteristics:")
+    print(f"  Type: {circuit_info['type']}")
+    print(f"  Average speed: {circuit_info['avg_speed']}")
+    print(f"  Corners: {circuit_info['corners']}")
+    print(f"  Length: {circuit_info['length_km']:.3f} km")
+    print(f"  Surface: {circuit_info['surface']}")
 
-print(f"\nStrategy Analysis:")
-print(f"  Optimal: {best['type']}")
-print(f"  Actual:  {actual_simulation['num_pit_stops'] + 1}-STOP")
-if abs(time_diff) < 5:
-    print(f"  Result:  ✓ OPTIMAL")
-elif time_diff > 0:
-    print(f"  Result:  ⚠ Lost {time_diff:.1f}s")
+print(f"\nML Model:")
+print(f"  Quality: R² = {metrics['test_r2']:.3f}")
+print(f"  Training samples: {len(features_df)}")
+print(f"  Max tire_age seen: {max_tire_age_seen} laps")
+print(f"  Sessions used: {', '.join(features_df['session_name'].unique())}")
+
+print(f"\nStrategy:")
+print(f"  Optimal (ML): {best['type']} with max stint {max([s['laps'] for s in best['stints']])} laps")
+print(f"  Actual:  {len(stints)}-STOP with max stint {max([s['laps'] for s in actual_simulation['stints']])} laps")
+
+# Calculate prediction quality
+time_diff_abs = abs(time_diff)
+time_diff_pct = (time_diff_abs / actual_simulation['total_time']) * 100
+
+print(f"\nPrediction Quality:")
+print(f"  Time difference: {time_diff_abs:.1f}s ({time_diff_pct:.1f}% error)")
+
+if time_diff_pct < 1.0:
+    print(f"  Quality: ✓ EXCELLENT (< 1% error)")
+    print(f"  Result: Predictions are highly reliable")
+elif time_diff_pct < 3.0:
+    print(f"  Quality: ✓ GOOD (< 3% error)")
+    print(f"  Result: Predictions are reliable")
+elif time_diff_pct < 5.0:
+    print(f"  Quality: ○ MODERATE (< 5% error)")
+    print(f"  Result: Predictions are acceptable")
 else:
-    print(f"  Result:  ✓ Better than predicted")
+    print(f"  Quality: ✗ POOR (> 5% error)")
+    print(f"  Result: ⚠ Model needs improvement")
+    print(f"\n  RECOMMENDATIONS:")
+    if len(features_df[features_df['session_name'] != 'R']) > len(features_df[features_df['session_name'] == 'R']):
+        print(f"    - Try training ONLY with Race data (exclude FP/Q)")
+        print(f"    - Practice sessions have slower, inconsistent times")
+    if len(features_df) < 1000:
+        print(f"    - More training data needed (currently {len(features_df)} samples)")
+    if metrics['test_r2'] < 0.7:
+        print(f"    - Model R² is low ({metrics['test_r2']:.3f})")
+        print(f"    - Try using only race data for more consistent patterns")
+
+if abs(time_diff) < 5:
+    print(f"\n  Verdict: ✓ OPTIMAL")
+elif time_diff > 0:
+    print(f"\n  Verdict: ⚠ Actual strategy was suboptimal by {time_diff:.1f}s")
+else:
+    print(f"\n  Verdict: ✓ Actual was {abs(time_diff):.1f}s faster")
+    if time_diff_pct < 3.0:
+        print(f"           (Within acceptable margin)")
+    else:
+        print(f"           (Model underestimated - see recommendations above)")
 
 print(f"\n{'='*70}")
 print("ANALYSIS COMPLETE")
