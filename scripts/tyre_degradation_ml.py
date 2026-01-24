@@ -302,175 +302,253 @@ def train_ml_model(features_df):
 def optimize_race_strategy(model, feature_columns, avg_conditions, circuit_features, 
                           total_race_laps, pit_stop_time, max_tire_age_seen):
     """
-    Optimizes race strategy - LIMITED to realistic tire ages
+    Optimizes race strategy - Tests ALL compound combinations
+    Includes 1-STOP, 2-STOP, and 3-STOP strategies
+    
+    F1 Rules enforced:
+    - Minimum 1 pit stop required
+    - Must use at least 2 different compounds
     """
     strategies = []
     
     # CRITICAL: Limit stint length to what we've actually seen in data
-    # Don't extrapolate beyond training data
     max_stint_length = min(int(max_tire_age_seen * 0.95), int(total_race_laps * 0.7))
     
     print(f"\n  ⚠ IMPORTANT: Limiting strategies to tire_age ≤ {max_stint_length} laps")
     print(f"    (Max tire_age in training data: {max_tire_age_seen} laps)")
-    print(f"    Model cannot reliably predict beyond this range\n")
+    print(f"    Model cannot reliably predict beyond this range")
+    print(f"    Testing ALL compound combinations (1-STOP, 2-STOP, 3-STOP)...\n")
     
-    # 1-STOP strategies (only if feasible)
+    # Compound definitions
+    compounds = {
+        'SOFT': 0,
+        'MEDIUM': 1,
+        'HARD': 2
+    }
+    
+    # ============================================
+    # HELPER FUNCTION: Simulate stint
+    # ============================================
+    def simulate_stint(stint_laps, compound_code, start_lap):
+        """Simulates a single stint and returns total time"""
+        time = 0
+        for lap_in_stint in range(1, stint_laps + 1):
+            race_lap = start_lap + lap_in_stint - 1
+            features = {
+                'tire_age': lap_in_stint,
+                'compound': compound_code,
+                'track_temp': avg_conditions['track_temp'],
+                'air_temp': avg_conditions['air_temp'],
+                'wind_speed': avg_conditions['wind_speed'],
+                'fuel_load': 110 - (race_lap / total_race_laps) * 110,
+                'track_evolution': race_lap / total_race_laps,
+                'session_type': 4,
+                **circuit_features
+            }
+            features_array = np.array([[features[col] for col in feature_columns]])
+            time += model.predict(features_array)[0]
+        return time
+    
+    # ============================================
+    # 1-STOP STRATEGIES
+    # ============================================
+    # Valid compound pairs (must be different per F1 rules)
+    compound_pairs_1stop = [
+        ('SOFT', 'MEDIUM'),
+        ('SOFT', 'HARD'),
+        ('MEDIUM', 'HARD')
+    ]
+    
     if max_stint_length >= total_race_laps * 0.4:
-        for pit_lap in range(int(total_race_laps * 0.3), min(max_stint_length, int(total_race_laps * 0.7)), 2):
+        for compound1_name, compound2_name in compound_pairs_1stop:
+            compound1 = compounds[compound1_name]
+            compound2 = compounds[compound2_name]
             
-            # Check if both stints are within limits
-            stint2_laps = total_race_laps - pit_lap
-            if stint2_laps > max_stint_length:
-                continue
-            
-            total_time = 0
-            
-            # Stint 1: MEDIUM
-            for lap in range(1, pit_lap + 1):
-                features = {
-                    'tire_age': lap,
-                    'compound': 1,
-                    'track_temp': avg_conditions['track_temp'],
-                    'air_temp': avg_conditions['air_temp'],
-                    'wind_speed': avg_conditions['wind_speed'],
-                    'fuel_load': 110 - (lap / total_race_laps) * 110,
-                    'track_evolution': lap / total_race_laps,
-                    'session_type': 4,
-                    **circuit_features
-                }
+            for pit_lap in range(int(total_race_laps * 0.3), min(max_stint_length, int(total_race_laps * 0.7)), 2):
+                stint2_laps = total_race_laps - pit_lap
                 
-                features_array = np.array([[features[col] for col in feature_columns]])
-                lap_time = model.predict(features_array)[0]
-                total_time += lap_time
-            
-            total_time += pit_stop_time
-            
-            # Stint 2: HARD
-            for lap_in_stint in range(1, stint2_laps + 1):
-                race_lap = pit_lap + lap_in_stint
-                features = {
-                    'tire_age': lap_in_stint,
-                    'compound': 2,
-                    'track_temp': avg_conditions['track_temp'],
-                    'air_temp': avg_conditions['air_temp'],
-                    'wind_speed': avg_conditions['wind_speed'],
-                    'fuel_load': 110 - (race_lap / total_race_laps) * 110,
-                    'track_evolution': race_lap / total_race_laps,
-                    'session_type': 4,
-                    **circuit_features
-                }
+                # Check stint lengths
+                if stint2_laps > max_stint_length or pit_lap > max_stint_length:
+                    continue
                 
-                features_array = np.array([[features[col] for col in feature_columns]])
-                lap_time = model.predict(features_array)[0]
-                total_time += lap_time
-            
-            strategies.append({
-                'type': '1-STOP',
-                'pit_laps': [pit_lap],
-                'stints': [
-                    {'laps': pit_lap, 'compound': 'MEDIUM'},
-                    {'laps': stint2_laps, 'compound': 'HARD'}
-                ],
-                'total_time': total_time,
-                'num_pit_stops': 1
-            })
-    
-    # 2-STOP strategies (always feasible)
-    pit1_range = range(int(total_race_laps * 0.25), min(max_stint_length, int(total_race_laps * 0.4)), 3)
-    pit2_range = range(int(total_race_laps * 0.5), min(max_stint_length + 20, int(total_race_laps * 0.75)), 3)
-    
-    for pit1 in pit1_range:
-        for pit2 in pit2_range:
-            if pit2 <= pit1 + 10:
-                continue
-            
-            stint1_len = pit1
-            stint2_len = pit2 - pit1
-            stint3_len = total_race_laps - pit2
-            
-            # Check all stints are within limits
-            if stint1_len > max_stint_length or stint2_len > max_stint_length or stint3_len > max_stint_length:
-                continue
+                # Simulate stints
+                total_time = 0
+                total_time += simulate_stint(pit_lap, compound1, 1)
+                total_time += pit_stop_time
+                total_time += simulate_stint(stint2_laps, compound2, pit_lap + 1)
                 
-            total_time = 0
-            
-            # Stint 1
-            for lap in range(1, pit1 + 1):
-                features = {
-                    'tire_age': lap,
-                    'compound': 1,
-                    'track_temp': avg_conditions['track_temp'],
-                    'air_temp': avg_conditions['air_temp'],
-                    'wind_speed': avg_conditions['wind_speed'],
-                    'fuel_load': 110 - (lap / total_race_laps) * 110,
-                    'track_evolution': lap / total_race_laps,
-                    'session_type': 4,
-                    **circuit_features
-                }
-                features_array = np.array([[features[col] for col in feature_columns]])
-                total_time += model.predict(features_array)[0]
-            
-            total_time += pit_stop_time
-            
-            # Stint 2
-            for lap_in_stint in range(1, stint2_len + 1):
-                race_lap = pit1 + lap_in_stint
-                features = {
-                    'tire_age': lap_in_stint,
-                    'compound': 2,
-                    'track_temp': avg_conditions['track_temp'],
-                    'air_temp': avg_conditions['air_temp'],
-                    'wind_speed': avg_conditions['wind_speed'],
-                    'fuel_load': 110 - (race_lap / total_race_laps) * 110,
-                    'track_evolution': race_lap / total_race_laps,
-                    'session_type': 4,
-                    **circuit_features
-                }
-                features_array = np.array([[features[col] for col in feature_columns]])
-                total_time += model.predict(features_array)[0]
-            
-            total_time += pit_stop_time
-            
-            # Stint 3
-            for lap_in_stint in range(1, stint3_len + 1):
-                race_lap = pit2 + lap_in_stint
-                features = {
-                    'tire_age': lap_in_stint,
-                    'compound': 2,
-                    'track_temp': avg_conditions['track_temp'],
-                    'air_temp': avg_conditions['air_temp'],
-                    'wind_speed': avg_conditions['wind_speed'],
-                    'fuel_load': 110 - (race_lap / total_race_laps) * 110,
-                    'track_evolution': race_lap / total_race_laps,
-                    'session_type': 4,
-                    **circuit_features
-                }
-                features_array = np.array([[features[col] for col in feature_columns]])
-                total_time += model.predict(features_array)[0]
-            
-            strategies.append({
-                'type': '2-STOP',
-                'pit_laps': [pit1, pit2],
-                'stints': [
-                    {'laps': pit1, 'compound': 'MEDIUM'},
-                    {'laps': stint2_len, 'compound': 'HARD'},
-                    {'laps': stint3_len, 'compound': 'HARD'}
-                ],
-                'total_time': total_time,
-                'num_pit_stops': 2
-            })
+                strategies.append({
+                    'type': '1-STOP',
+                    'pit_laps': [pit_lap],
+                    'stints': [
+                        {'laps': pit_lap, 'compound': compound1_name},
+                        {'laps': stint2_laps, 'compound': compound2_name}
+                    ],
+                    'total_time': total_time,
+                    'num_pit_stops': 1
+                })
     
+    # ============================================
+    # 2-STOP STRATEGIES
+    # ============================================
+    # Valid compound triplets (must use at least 2 different)
+    compound_triplets_2stop = [
+        ('SOFT', 'MEDIUM', 'HARD'),
+        ('SOFT', 'HARD', 'HARD'),
+        ('SOFT', 'MEDIUM', 'MEDIUM'),
+        ('MEDIUM', 'SOFT', 'HARD'),
+        ('MEDIUM', 'HARD', 'HARD'),
+        ('MEDIUM', 'SOFT', 'SOFT'),
+        ('HARD', 'SOFT', 'SOFT'),
+        ('HARD', 'MEDIUM', 'MEDIUM'),
+        ('HARD', 'SOFT', 'MEDIUM')
+    ]
+    
+    pit1_range = range(int(total_race_laps * 0.20), min(max_stint_length, int(total_race_laps * 0.40)), 3)
+    pit2_range = range(int(total_race_laps * 0.45), min(max_stint_length + 15, int(total_race_laps * 0.75)), 3)
+    
+    for compound1_name, compound2_name, compound3_name in compound_triplets_2stop:
+        compound1 = compounds[compound1_name]
+        compound2 = compounds[compound2_name]
+        compound3 = compounds[compound3_name]
+        
+        for pit1 in pit1_range:
+            for pit2 in pit2_range:
+                # Minimum stint length: 10 laps
+                if pit2 <= pit1 + 10:
+                    continue
+                
+                stint1_len = pit1
+                stint2_len = pit2 - pit1
+                stint3_len = total_race_laps - pit2
+                
+                # Check all stints within limits
+                if (stint1_len > max_stint_length or 
+                    stint2_len > max_stint_length or 
+                    stint3_len > max_stint_length or
+                    stint3_len < 10):
+                    continue
+                
+                # Simulate stints
+                total_time = 0
+                total_time += simulate_stint(stint1_len, compound1, 1)
+                total_time += pit_stop_time
+                total_time += simulate_stint(stint2_len, compound2, pit1 + 1)
+                total_time += pit_stop_time
+                total_time += simulate_stint(stint3_len, compound3, pit2 + 1)
+                
+                strategies.append({
+                    'type': '2-STOP',
+                    'pit_laps': [pit1, pit2],
+                    'stints': [
+                        {'laps': stint1_len, 'compound': compound1_name},
+                        {'laps': stint2_len, 'compound': compound2_name},
+                        {'laps': stint3_len, 'compound': compound3_name}
+                    ],
+                    'total_time': total_time,
+                    'num_pit_stops': 2
+                })
+    
+    # ============================================
+    # 3-STOP STRATEGIES
+    # ============================================
+    # Valid compound quartets (must use at least 2 different)
+    compound_quartets_3stop = [
+        ('SOFT', 'SOFT', 'MEDIUM', 'HARD'),
+        ('SOFT', 'MEDIUM', 'MEDIUM', 'HARD'),
+        ('SOFT', 'MEDIUM', 'HARD', 'HARD'),
+        ('MEDIUM', 'MEDIUM', 'HARD', 'HARD'),
+        ('SOFT', 'SOFT', 'SOFT', 'HARD'),
+        ('SOFT', 'SOFT', 'HARD', 'HARD'),
+        ('MEDIUM', 'SOFT', 'SOFT', 'HARD'),
+        ('HARD', 'SOFT', 'SOFT', 'SOFT'),
+        ('HARD', 'MEDIUM', 'MEDIUM', 'MEDIUM')
+    ]
+    
+    # 3-stop only makes sense with shorter stints
+    pit1_range_3 = range(int(total_race_laps * 0.15), min(max_stint_length, int(total_race_laps * 0.30)), 4)
+    pit2_range_3 = range(int(total_race_laps * 0.35), min(max_stint_length, int(total_race_laps * 0.55)), 4)
+    pit3_range_3 = range(int(total_race_laps * 0.60), min(max_stint_length, int(total_race_laps * 0.80)), 4)
+    
+    for compound1_name, compound2_name, compound3_name, compound4_name in compound_quartets_3stop:
+        compound1 = compounds[compound1_name]
+        compound2 = compounds[compound2_name]
+        compound3 = compounds[compound3_name]
+        compound4 = compounds[compound4_name]
+        
+        for pit1 in pit1_range_3:
+            for pit2 in pit2_range_3:
+                for pit3 in pit3_range_3:
+                    # Minimum stint length: 8 laps
+                    if pit2 <= pit1 + 8 or pit3 <= pit2 + 8:
+                        continue
+                    
+                    stint1_len = pit1
+                    stint2_len = pit2 - pit1
+                    stint3_len = pit3 - pit2
+                    stint4_len = total_race_laps - pit3
+                    
+                    # Check all stints within limits
+                    if (stint1_len > max_stint_length or 
+                        stint2_len > max_stint_length or 
+                        stint3_len > max_stint_length or
+                        stint4_len > max_stint_length or
+                        stint4_len < 8):
+                        continue
+                    
+                    # Simulate stints
+                    total_time = 0
+                    total_time += simulate_stint(stint1_len, compound1, 1)
+                    total_time += pit_stop_time
+                    total_time += simulate_stint(stint2_len, compound2, pit1 + 1)
+                    total_time += pit_stop_time
+                    total_time += simulate_stint(stint3_len, compound3, pit2 + 1)
+                    total_time += pit_stop_time
+                    total_time += simulate_stint(stint4_len, compound4, pit3 + 1)
+                    
+                    strategies.append({
+                        'type': '3-STOP',
+                        'pit_laps': [pit1, pit2, pit3],
+                        'stints': [
+                            {'laps': stint1_len, 'compound': compound1_name},
+                            {'laps': stint2_len, 'compound': compound2_name},
+                            {'laps': stint3_len, 'compound': compound3_name},
+                            {'laps': stint4_len, 'compound': compound4_name}
+                        ],
+                        'total_time': total_time,
+                        'num_pit_stops': 3
+                    })
+    
+    # ============================================
+    # RESULTS
+    # ============================================
     if len(strategies) == 0:
         print("\n  ⚠ WARNING: No valid strategies found within tire_age limits!")
         print("    Model needs more data with longer stints to optimize strategy.")
         return None
     
     best_strategy = min(strategies, key=lambda x: x['total_time'])
-    top_strategies = sorted(strategies, key=lambda x: x['total_time'])[:5]
+    
+    # Get top 5 overall and top 3 per category
+    top_strategies_overall = sorted(strategies, key=lambda x: x['total_time'])[:10]
+    
+    strategies_1stop = [s for s in strategies if s['type'] == '1-STOP']
+    strategies_2stop = [s for s in strategies if s['type'] == '2-STOP']
+    strategies_3stop = [s for s in strategies if s['type'] == '3-STOP']
+    
+    print(f"  ✓ Tested {len(strategies)} strategy combinations:")
+    print(f"      - 1-STOP: {len(strategies_1stop)} strategies")
+    print(f"      - 2-STOP: {len(strategies_2stop)} strategies")
+    print(f"      - 3-STOP: {len(strategies_3stop)} strategies")
     
     return {
         'best_strategy': best_strategy,
-        'all_strategies': top_strategies
+        'all_strategies': top_strategies_overall,
+        'by_type': {
+            '1-STOP': sorted(strategies_1stop, key=lambda x: x['total_time'])[:3] if strategies_1stop else [],
+            '2-STOP': sorted(strategies_2stop, key=lambda x: x['total_time'])[:3] if strategies_2stop else [],
+            '3-STOP': sorted(strategies_3stop, key=lambda x: x['total_time'])[:3] if strategies_3stop else []
+        }
     }
 
 def simulate_actual_strategy(stints, model, feature_columns, avg_conditions, 
@@ -756,11 +834,35 @@ else:
     print(f"    - Actual strategy kept all stints ≤ {max([s['laps'] for s in actual_simulation['stints']])} laps")
     print(f"    - Fresh tires every {np.mean([s['laps'] for s in actual_simulation['stints']]):.0f} laps is faster!")
 
-print(f"\nTOP 5 ALTERNATIVE STRATEGIES:")
-for i, strat in enumerate(optimal_strategies['all_strategies'][:5], 1):
+print(f"\n{'='*70}")
+print("STRATEGY BREAKDOWN BY TYPE")
+print(f"{'='*70}")
+
+# Show top 3 of each type
+for strategy_type in ['1-STOP', '2-STOP', '3-STOP']:
+    strategies_of_type = optimal_strategies['by_type'][strategy_type]
+    
+    if len(strategies_of_type) == 0:
+        print(f"\n{strategy_type}: Not feasible with current tire_age limits")
+        continue
+    
+    best_of_type = strategies_of_type[0]
+    time_vs_overall_best = best_of_type['total_time'] - best['total_time']
+    
+    print(f"\n{strategy_type}:")
+    print(f"  Best: {best_of_type['total_time']:.1f}s (+{time_vs_overall_best:.1f}s vs overall best)")
+    
+    for i, strat in enumerate(strategies_of_type[:3], 1):
+        time_vs_best = strat['total_time'] - best_of_type['total_time']
+        stints_str = " → ".join([f"{s['laps']}L {s['compound']}" for s in strat['stints']])
+        print(f"    {i}. {stints_str:50} | {strat['total_time']:.1f}s (+{time_vs_best:.1f}s)")
+
+print(f"\nTOP 10 OVERALL STRATEGIES (All Types):")
+for i, strat in enumerate(optimal_strategies['all_strategies'][:10], 1):
     time_vs_best = strat['total_time'] - best['total_time']
     stints_str = " → ".join([f"{s['laps']}L {s['compound']}" for s in strat['stints']])
-    print(f"  {i}. {strat['type']:7} | {stints_str:45} | {strat['total_time']:.1f}s (+{time_vs_best:.1f}s)")
+    marker = "★" if i == 1 else " "
+    print(f"  {marker}{i:2}. {strat['type']:7} | {stints_str:45} | {strat['total_time']:.1f}s (+{time_vs_best:.1f}s)")
 
 # ============================================
 # STINT ANALYSIS & VISUALIZATION
