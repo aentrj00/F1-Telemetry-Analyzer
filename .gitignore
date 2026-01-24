@@ -7,3 +7,5 @@ __pycache__/
 # Carpetas de datos (cache puede ser pesado)
 cache/
 
+#grafos
+output*/
