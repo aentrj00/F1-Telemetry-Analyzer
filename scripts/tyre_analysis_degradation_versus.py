@@ -380,9 +380,9 @@ legend2 = ax2.legend(loc='upper center', fontsize=9, framealpha=0.98,
 # ===== EXPLANATION BOX - Centered below BOTH plots =====
 explanation_text = (
     "HOW TO READ:\n"
-    "• Each circle = 1 lap  |  S1/S2/S3 = Stint number  |  Circle shape is always the same\n"
-    "• Dashed line = Degradation trend  |  Arrow ↗ pointing up = Tires degrading (slower)\n"
-    "• Arrow → horizontal/flat = Tires staying stable"
+    "* Each circle = 1 lap  |  S1/S2/S3 = Stint number  |  Circle shape is always the same\n"
+    "* Dashed line = Degradation trend  |  Arrow ↗ pointing up = Tires degrading (slower)\n"
+    "* Arrow -> horizontal/flat = Tires staying stable"
 )
 
 fig.text(0.5, 0.04, explanation_text,
@@ -438,10 +438,10 @@ if degradation1 and degradation2:
 print("\n" + "=" * 70)
 print("HOW TO INTERPRET")
 print("=" * 70)
-print("  • Slope = seconds lost per lap as tire ages")
-print("  • Lower slope = better tire management")
-print("  • R² close to 1.0 = very consistent degradation")
-print("  • R² low = high variation (traffic, mistakes, etc)")
-print("  • Upward arrow = tire is degrading")
-print("  • Flat/horizontal arrow = tire staying stable")
+print("  * Slope = seconds lost per lap as tire ages")
+print("  * Lower slope = better tire management")
+print("  * R² close to 1.0 = very consistent degradation")
+print("  * R² low = high variation (traffic, mistakes, etc)")
+print("  * Upward arrow = tire is degrading")
+print("  * Flat/horizontal arrow = tire staying stable")
 print("\n" + "=" * 70)

@@ -63,7 +63,7 @@ plt.tight_layout()
 plt.savefig('circuito_con_distancias.png', dpi=300, bbox_inches='tight')
 plt.show()
 
-print("✅ Gráfico guardado!")
+print("[SUCCESS] Gráfico guardado!")
 
 
 # Obtener y mostrar telemetría de Lando Norris

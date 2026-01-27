@@ -42,7 +42,7 @@ def get_fastest_lap_telemetry(session, driver):
         return telemetry
         
     except Exception as e:
-        print(f"  ✗ Error getting telemetry for {driver}: {str(e)[:50]}")
+        print(f"  [ERROR] Error getting telemetry for {driver}: {str(e)[:50]}")
         return None
 
 def create_mini_sectors(telemetry, sector_length=100):
@@ -270,9 +270,9 @@ print("=" * 70)
 try:
     session = ff1.get_session(int(year), gp, session_type)
     session.load()
-    print("\n✓ Session loaded successfully")
+    print("\n[SUCCESS] Session loaded successfully")
 except Exception as e:
-    print(f"\n✗ Error loading session: {e}")
+    print(f"\n[ERROR] Error loading session: {e}")
     exit()
 
 # Get telemetry
@@ -284,19 +284,19 @@ print(f"\nLoading fastest lap for {driver1}...")
 tel1 = get_fastest_lap_telemetry(session, driver1)
 
 if tel1 is None:
-    print(f"✗ Could not get telemetry for {driver1}")
+    print(f"[ERROR] Could not get telemetry for {driver1}")
     exit()
 
-print(f"✓ Loaded {len(tel1)} telemetry points")
+print(f"[SUCCESS] Loaded {len(tel1)} telemetry points")
 
 print(f"\nLoading fastest lap for {driver2}...")
 tel2 = get_fastest_lap_telemetry(session, driver2)
 
 if tel2 is None:
-    print(f"✗ Could not get telemetry for {driver2}")
+    print(f"[ERROR] Could not get telemetry for {driver2}")
     exit()
 
-print(f"✓ Loaded {len(tel2)} telemetry points")
+print(f"[SUCCESS] Loaded {len(tel2)} telemetry points")
 
 # Create mini-sectors
 print("\n" + "=" * 70)
@@ -308,8 +308,8 @@ print(f"\nDividing circuit into {sector_length}m sectors...")
 sectors1 = create_mini_sectors(tel1, sector_length)
 sectors2 = create_mini_sectors(tel2, sector_length)
 
-print(f"✓ Created {len(sectors1)} mini-sectors for {driver1}")
-print(f"✓ Created {len(sectors2)} mini-sectors for {driver2}")
+print(f"[SUCCESS] Created {len(sectors1)} mini-sectors for {driver1}")
+print(f"[SUCCESS] Created {len(sectors2)} mini-sectors for {driver2}")
 
 # Calculate deltas
 print("\n" + "=" * 70)
@@ -319,21 +319,21 @@ print("=" * 70)
 comparisons = calculate_time_delta(sectors1, sectors2, sector_length)
 
 if comparisons.empty:
-    print("✗ Could not calculate sector comparisons")
+    print("[ERROR] Could not calculate sector comparisons")
     exit()
 
 total_delta = comparisons['cumulative_delta'].iloc[-1]
 faster_driver = driver1 if total_delta < 0 else driver2
 delta_abs = abs(total_delta)
 
-print(f"\n✓ Analyzed {len(comparisons)} sectors")
+print(f"\n[SUCCESS] Analyzed {len(comparisons)} sectors")
 print(f"\nFINAL RESULT:")
 print(f"  {drivers_info[faster_driver]} is faster by {delta_abs:.3f}s")
 
 # Find significant corners
 significant_corners = find_significant_corners(comparisons, min_delta_threshold=0.03)
 
-print(f"\n✓ Found {len(significant_corners)} significant corners (Δ > 0.03s)")
+print(f"\n[SUCCESS] Found {len(significant_corners)} significant corners (Delta > 0.03s)")
 
 if len(significant_corners) > 0:
     print(f"\nTOP 5 BIGGEST DIFFERENCES:")
@@ -410,7 +410,7 @@ ax1.set_aspect('equal')
 
 # Add colorbar
 cbar = plt.colorbar(lc, ax=ax1, orientation='horizontal', pad=0.05, aspect=50)
-cbar.set_label(f'{driver1} faster ← → {driver2} faster', fontsize=12, fontweight='bold')
+cbar.set_label(f'{driver1} faster <- -> {driver2} faster', fontsize=12, fontweight='bold')
 
 # Mark significant corners
 for idx, corner in significant_corners.head(10).iterrows():
@@ -505,7 +505,7 @@ ax4.text(0.02, 0.98, stats_text, transform=ax4.transAxes,
 # Save
 filename = f'output_sector_analysis/{gp}_{year}_{session_type}_{driver1}_vs_{driver2}_sectors.png'
 plt.savefig(filename, dpi=300, bbox_inches='tight')
-print(f"\n✓ Visualization saved: {filename}")
+print(f"\n[SUCCESS] Visualization saved: {filename}")
 
 plt.show(block=True)
 
@@ -595,22 +595,22 @@ print("INTERPRETATION")
 print(f"{'='*70}")
 
 if delta_abs < 0.1:
-    print("\n  → Very close performance - drivers are evenly matched")
+    print("\n  -> Very close performance - drivers are evenly matched")
 elif delta_abs < 0.3:
-    print(f"\n  → {drivers_info[faster_driver]} has slight advantage")
+    print(f"\n  -> {drivers_info[faster_driver]} has slight advantage")
     print(f"     Could be driver skill, car setup, or track conditions")
 else:
-    print(f"\n  → {drivers_info[faster_driver]} has clear advantage")
+    print(f"\n  -> {drivers_info[faster_driver]} has clear advantage")
     print(f"     Significant performance gap of {delta_abs:.3f}s")
 
 if len(significant_corners) > 5:
-    print(f"\n  → Multiple corners show differences (> 0.03s)")
+    print(f"\n  -> Multiple corners show differences (> 0.03s)")
     print(f"     Suggests fundamental car setup or driving style differences")
 elif len(significant_corners) > 0:
-    print(f"\n  → Few specific corners show differences")
+    print(f"\n  -> Few specific corners show differences")
     print(f"     Likely specific corner characteristics (e.g., traction, braking)")
 else:
-    print(f"\n  → No major corner differences found")
+    print(f"\n  -> No major corner differences found")
     print(f"     Time gained/lost distributed evenly across lap")
 
 print(f"\n{'='*70}")

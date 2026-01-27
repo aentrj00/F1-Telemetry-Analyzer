@@ -91,9 +91,9 @@ def load_all_sessions(year, gp):
             session = ff1.get_session(int(year), gp, session_type)
             session.load()
             sessions.append({'type': session_type, 'session': session})
-            print(f"  ✓ {session_type} loaded")
+            print(f"  [SUCCESS] {session_type} loaded")
         except Exception as e:
-            print(f"  ✗ {session_type} not available: {str(e)[:50]}")
+            print(f"  [ERROR] {session_type} not available: {str(e)[:50]}")
     
     return sessions
 
@@ -156,7 +156,7 @@ def prepare_ml_features_from_sessions(sessions_data, gp_name, target_driver=None
             try:
                 laps = session.laps.pick_drivers(target_driver)
             except:
-                print(f"    ✗ Driver {target_driver} not found in {session_type}")
+                print(f"    [ERROR] Driver {target_driver} not found in {session_type}")
                 continue
         else:
             laps = session.laps
@@ -164,10 +164,10 @@ def prepare_ml_features_from_sessions(sessions_data, gp_name, target_driver=None
         laps = laps[laps['LapTime'].notna()]
         
         if len(laps) == 0:
-            print(f"    ✗ No valid laps in {session_type}")
+            print(f"    [ERROR] No valid laps in {session_type}")
             continue
         
-        print(f"    → {len(laps)} valid laps")
+        print(f"    -> {len(laps)} valid laps")
         
         weather_data = session.weather_data
         total_laps = laps['LapNumber'].max() if session_type == 'R' else 60
@@ -314,7 +314,7 @@ def optimize_race_strategy(model, feature_columns, avg_conditions, circuit_featu
     # CRITICAL: Limit stint length to what we've actually seen in data
     max_stint_length = min(int(max_tire_age_seen * 0.95), int(total_race_laps * 0.7))
     
-    print(f"\n  ⚠ IMPORTANT: Limiting strategies to tire_age ≤ {max_stint_length} laps")
+    print(f"\n  [!] IMPORTANT: Limiting strategies to tire_age <= {max_stint_length} laps")
     print(f"    (Max tire_age in training data: {max_tire_age_seen} laps)")
     print(f"    Model cannot reliably predict beyond this range")
     print(f"    Testing ALL compound combinations (1-STOP, 2-STOP, 3-STOP)...\n")
@@ -523,7 +523,7 @@ def optimize_race_strategy(model, feature_columns, avg_conditions, circuit_featu
     # RESULTS
     # ============================================
     if len(strategies) == 0:
-        print("\n  ⚠ WARNING: No valid strategies found within tire_age limits!")
+        print("\n  [!] WARNING: No valid strategies found within tire_age limits!")
         print("    Model needs more data with longer stints to optimize strategy.")
         return None
     
@@ -536,7 +536,7 @@ def optimize_race_strategy(model, feature_columns, avg_conditions, circuit_featu
     strategies_2stop = [s for s in strategies if s['type'] == '2-STOP']
     strategies_3stop = [s for s in strategies if s['type'] == '3-STOP']
     
-    print(f"  ✓ Tested {len(strategies)} strategy combinations:")
+    print(f"  [SUCCESS] Tested {len(strategies)} strategy combinations:")
     print(f"      - 1-STOP: {len(strategies_1stop)} strategies")
     print(f"      - 2-STOP: {len(strategies_2stop)} strategies")
     print(f"      - 3-STOP: {len(strategies_3stop)} strategies")
@@ -667,18 +667,18 @@ use_all_drivers = input("\nTrain model with ALL drivers? (recommended) [Y/n]: ")
 train_driver = None if use_all_drivers != 'N' else driver
 
 if train_driver is None:
-    print(f"  → Training with ALL drivers' data (better predictions)")
+    print(f"  -> Training with ALL drivers' data (better predictions)")
 else:
-    print(f"  → Training with only {train_driver}'s data")
+    print(f"  -> Training with only {train_driver}'s data")
 
 # CRITICAL: Ask if user wants to train only with race data
 use_race_only = input("\nTrain ONLY with Race data? (more accurate predictions) [Y/n]: ").strip().upper()
 if use_race_only != 'N':
-    print(f"  → Training ONLY with Race session data (excludes FP/Q)")
-    print(f"  → This gives more accurate race predictions")
+    print(f"  -> Training ONLY with Race session data (excludes FP/Q)")
+    print(f"  -> This gives more accurate race predictions")
     sessions_to_use = ['R']
 else:
-    print(f"  → Training with ALL sessions (FP1/FP2/FP3/Q/R)")
+    print(f"  -> Training with ALL sessions (FP1/FP2/FP3/Q/R)")
     sessions_to_use = None
 
 print("\n" + "=" * 70)
@@ -693,7 +693,7 @@ if len(sessions_data) == 0:
     print("\nError: No sessions could be loaded")
     exit()
 
-print(f"\n✓ Successfully loaded {len(sessions_data)} sessions")
+print(f"\n[SUCCESS] Successfully loaded {len(sessions_data)} sessions")
 
 # Data preparation
 print("\n" + "=" * 70)
@@ -711,7 +711,7 @@ if features_df is None or len(features_df) < 50:
 # CRITICAL: Calculate max tire_age seen in data
 max_tire_age_seen = int(features_df['tire_age'].max())
 
-print(f"\n✓ Total training samples: {len(features_df)}")
+print(f"\n[SUCCESS] Total training samples: {len(features_df)}")
 print(f"  Maximum tire_age in data: {max_tire_age_seen} laps")
 print(f"  Sessions breakdown:")
 for session_name in features_df['session_name'].unique():
@@ -758,7 +758,7 @@ print(f"  Training MAE:  {metrics['train_mae']:.4f} seconds")
 print(f"  Testing MAE:   {metrics['test_mae']:.4f} seconds")
 
 quality = "EXCELLENT" if metrics['test_r2'] > 0.8 else "GOOD" if metrics['test_r2'] > 0.6 else "MODERATE" if metrics['test_r2'] > 0.4 else "LOW"
-print(f"  → {quality} model quality")
+print(f"  -> {quality} model quality")
 
 print(f"\nTop 10 Most Important Features:")
 for i, (feat, imp) in enumerate(sorted(metrics['feature_importance'].items(), key=lambda x: x[1], reverse=True)[:10], 1):
@@ -788,7 +788,7 @@ for i, stint in enumerate(best['stints'], 1):
     print(f"  Stint {i}: {stint['laps']} laps ({stint['compound']})")
     if i < len(best['stints']):
         cumulative_laps = sum([s['laps'] for s in best['stints'][:i]])
-        print(f"  PIT STOP {i} (after lap {cumulative_laps}) → +{pit_stop_time:.1f}s")
+        print(f"  PIT STOP {i} (after lap {cumulative_laps}) -> +{pit_stop_time:.1f}s")
 
 total_minutes = int(best['total_time'] // 60)
 total_seconds = best['total_time'] % 60
@@ -806,7 +806,7 @@ for stint in actual_simulation['stints']:
     print(f"  Stint {stint['stint_number']}: {stint['laps']} laps ({stint['compound']})")
     if stint['stint_number'] < len(actual_simulation['stints']):
         end_lap = stint['start_lap'] + stint['laps'] - 1
-        print(f"  PIT STOP {stint['stint_number']} (after lap {end_lap}) → +{pit_stop_time:.1f}s")
+        print(f"  PIT STOP {stint['stint_number']} (after lap {end_lap}) -> +{pit_stop_time:.1f}s")
 
 actual_minutes = int(actual_simulation['total_time'] // 60)
 actual_seconds = actual_simulation['total_time'] % 60
@@ -821,17 +821,17 @@ print("STRATEGY COMPARISON")
 print(f"{'='*70}")
 
 if abs(time_diff) < 5:
-    print(f"✓ Strategy was OPTIMAL (difference: {abs(time_diff):.1f}s)")
+    print(f"[SUCCESS] Strategy was OPTIMAL (difference: {abs(time_diff):.1f}s)")
 elif time_diff > 0:
-    print(f"⚠ Suboptimal strategy")
+    print(f"[!] Suboptimal strategy")
     print(f"  Time lost: {time_diff:.1f}s compared to best strategy")
     print(f"  Could have finished {time_diff:.1f}s faster with {best['type']}")
 else:
-    print(f"ℹ Actual strategy was {abs(time_diff):.1f}s faster than prediction")
+    print(f"[i] Actual strategy was {abs(time_diff):.1f}s faster than prediction")
     print(f"\n  WHY? The model is conservative with long stints:")
     print(f"    - Best strategy has stint length: {max([s['laps'] for s in best['stints']])} laps")
     print(f"    - Max tire_age in training: {max_tire_age_seen} laps")
-    print(f"    - Actual strategy kept all stints ≤ {max([s['laps'] for s in actual_simulation['stints']])} laps")
+    print(f"    - Actual strategy kept all stints <= {max([s['laps'] for s in actual_simulation['stints']])} laps")
     print(f"    - Fresh tires every {np.mean([s['laps'] for s in actual_simulation['stints']]):.0f} laps is faster!")
 
 print(f"\n{'='*70}")
@@ -854,14 +854,14 @@ for strategy_type in ['1-STOP', '2-STOP', '3-STOP']:
     
     for i, strat in enumerate(strategies_of_type[:3], 1):
         time_vs_best = strat['total_time'] - best_of_type['total_time']
-        stints_str = " → ".join([f"{s['laps']}L {s['compound']}" for s in strat['stints']])
+        stints_str = " -> ".join([f"{s['laps']}L {s['compound']}" for s in strat['stints']])
         print(f"    {i}. {stints_str:50} | {strat['total_time']:.1f}s (+{time_vs_best:.1f}s)")
 
 print(f"\nTOP 10 OVERALL STRATEGIES (All Types):")
 for i, strat in enumerate(optimal_strategies['all_strategies'][:10], 1):
     time_vs_best = strat['total_time'] - best['total_time']
-    stints_str = " → ".join([f"{s['laps']}L {s['compound']}" for s in strat['stints']])
-    marker = "★" if i == 1 else " "
+    stints_str = " -> ".join([f"{s['laps']}L {s['compound']}" for s in strat['stints']])
+    marker = "estrella" if i == 1 else " "
     print(f"  {marker}{i:2}. {strat['type']:7} | {stints_str:45} | {strat['total_time']:.1f}s (+{time_vs_best:.1f}s)")
 
 # ============================================
@@ -1006,11 +1006,11 @@ if num_stints > 0:
     
     filename = f'output_tire_ml/{gp}_{year}_{driver}_ML_analysis.png'
     plt.savefig(filename, dpi=300, bbox_inches='tight')
-    print(f"\n✓ Visualization saved: {filename}")
+    print(f"\n[SUCCESS] Visualization saved: {filename}")
     
     plt.show(block=True)
 else:
-    print("\n⚠ No stints to visualize")
+    print("\n[!] No stints to visualize")
 
 # ============================================
 # SUMMARY
@@ -1051,17 +1051,17 @@ print(f"\nPrediction Quality:")
 print(f"  Time difference: {time_diff_abs:.1f}s ({time_diff_pct:.1f}% error)")
 
 if time_diff_pct < 1.0:
-    print(f"  Quality: ✓ EXCELLENT (< 1% error)")
+    print(f"  Quality: [SUCCESS] EXCELLENT (< 1% error)")
     print(f"  Result: Predictions are highly reliable")
 elif time_diff_pct < 3.0:
-    print(f"  Quality: ✓ GOOD (< 3% error)")
+    print(f"  Quality: [SUCCESS] GOOD (< 3% error)")
     print(f"  Result: Predictions are reliable")
 elif time_diff_pct < 5.0:
-    print(f"  Quality: ○ MODERATE (< 5% error)")
+    print(f"  Quality:  MODERATE (< 5% error)")
     print(f"  Result: Predictions are acceptable")
 else:
-    print(f"  Quality: ✗ POOR (> 5% error)")
-    print(f"  Result: ⚠ Model needs improvement")
+    print(f"  Quality: [ERROR] POOR (> 5% error)")
+    print(f"  Result: [!] Model needs improvement")
     print(f"\n  RECOMMENDATIONS:")
     if len(features_df[features_df['session_name'] != 'R']) > len(features_df[features_df['session_name'] == 'R']):
         print(f"    - Try training ONLY with Race data (exclude FP/Q)")
@@ -1073,11 +1073,11 @@ else:
         print(f"    - Try using only race data for more consistent patterns")
 
 if abs(time_diff) < 5:
-    print(f"\n  Verdict: ✓ OPTIMAL")
+    print(f"\n  Verdict: [SUCCESS] OPTIMAL")
 elif time_diff > 0:
-    print(f"\n  Verdict: ⚠ Actual strategy was suboptimal by {time_diff:.1f}s")
+    print(f"\n  Verdict: [!] Actual strategy was suboptimal by {time_diff:.1f}s")
 else:
-    print(f"\n  Verdict: ✓ Actual was {abs(time_diff):.1f}s faster")
+    print(f"\n  Verdict: [SUCCESS] Actual was {abs(time_diff):.1f}s faster")
     if time_diff_pct < 3.0:
         print(f"           (Within acceptable margin)")
     else:

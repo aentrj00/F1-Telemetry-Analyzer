@@ -191,9 +191,9 @@ print("=" * 70)
 try:
     session = ff1.get_session(int(year), gp, session_type)
     session.load()
-    print("\n✓ Session loaded successfully")
+    print("\n[SUCCESS] Session loaded successfully")
 except Exception as e:
-    print(f"\n✗ Error loading session: {e}")
+    print(f"\n[ERROR] Error loading session: {e}")
     exit()
 
 # Get driver laps
@@ -202,12 +202,12 @@ try:
     laps = laps[laps['LapTime'].notna()]
     
     if len(laps) == 0:
-        print(f"\n✗ No valid laps found for {driver}")
+        print(f"\n[ERROR] No valid laps found for {driver}")
         exit()
     
-    print(f"✓ Found {len(laps)} valid laps")
+    print(f"[SUCCESS] Found {len(laps)} valid laps")
 except Exception as e:
-    print(f"\n✗ Error getting laps: {e}")
+    print(f"\n[ERROR] Error getting laps: {e}")
     exit()
 
 # ============================================
@@ -502,7 +502,7 @@ if compound_legend:
 # Save
 filename = f'output_consistency/{gp}_{year}_{session_type}_{driver}_consistency.png'
 plt.savefig(filename, dpi=300, bbox_inches='tight')
-print(f"\n✓ Visualization saved: {filename}")
+print(f"\n[SUCCESS] Visualization saved: {filename}")
 
 plt.show(block=True)
 

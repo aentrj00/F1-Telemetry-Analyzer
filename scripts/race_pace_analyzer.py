@@ -240,9 +240,9 @@ print("=" * 70)
 try:
     session = ff1.get_session(int(year), gp, 'R')
     session.load()
-    print("\n✓ Race session loaded successfully")
+    print("\n[SUCCESS] Race session loaded successfully")
 except Exception as e:
-    print(f"\n✗ Error loading session: {e}")
+    print(f"\n[X] Error loading session: {e}")
     exit()
 
 # Get driver laps
@@ -254,17 +254,17 @@ try:
     laps2 = laps2[laps2['LapTime'].notna()]
     
     if len(laps1) == 0 or len(laps2) == 0:
-        print(f"\n✗ Not enough valid laps")
+        print(f"\n[X] Not enough valid laps")
         exit()
     
-    print(f"✓ {driver1}: {len(laps1)} laps")
-    print(f"✓ {driver2}: {len(laps2)} laps")
+    print(f"[SUCCESS] {driver1}: {len(laps1)} laps")
+    print(f"[SUCCESS] {driver2}: {len(laps2)} laps")
 except Exception as e:
-    print(f"\n✗ Error getting laps: {e}")
+    print(f"\n[ERROR] Error getting laps: {e}")
     exit()
 
 total_race_laps = int(session.laps['LapNumber'].max())
-print(f"✓ Total race laps: {total_race_laps}")
+print(f"[SUCCESS] Total race laps: {total_race_laps}")
 
 # ============================================
 # STINT ANALYSIS
@@ -303,8 +303,8 @@ for i, stint in enumerate(stints1, 1):
         })
         
         print(f"  Stint {i} ({compound}): Laps {start_lap}-{end_lap}")
-        print(f"    Raw pace: {stats['avg_raw']:.3f}s ± {stats['std_raw']:.3f}s")
-        print(f"    Fuel-corrected: {stats['avg_corrected']:.3f}s ± {stats['std_corrected']:.3f}s")
+        print(f"    Raw pace: {stats['avg_raw']:.3f}s +/- {stats['std_raw']:.3f}s")
+        print(f"    Fuel-corrected: {stats['avg_corrected']:.3f}s +/- {stats['std_corrected']:.3f}s")
 
 print(f"\n{driver2} Stint Analysis:")
 for i, stint in enumerate(stints2, 1):
@@ -325,8 +325,8 @@ for i, stint in enumerate(stints2, 1):
         })
         
         print(f"  Stint {i} ({compound}): Laps {start_lap}-{end_lap}")
-        print(f"    Raw pace: {stats['avg_raw']:.3f}s ± {stats['std_raw']:.3f}s")
-        print(f"    Fuel-corrected: {stats['avg_corrected']:.3f}s ± {stats['std_corrected']:.3f}s")
+        print(f"    Raw pace: {stats['avg_raw']:.3f}s +/- {stats['std_raw']:.3f}s")
+        print(f"    Fuel-corrected: {stats['avg_corrected']:.3f}s +/- {stats['std_corrected']:.3f}s")
 
 # ============================================
 # PACE COMPARISON
@@ -344,12 +344,12 @@ if overall1 and overall2:
     print(f"\n{driver1} ({drivers_info[driver1]}):")
     print(f"  Average raw pace: {overall1['avg_raw']:.3f}s")
     print(f"  Fuel-corrected pace: {overall1['avg_corrected']:.3f}s")
-    print(f"  Consistency (σ): {overall1['std_corrected']:.3f}s")
+    print(f"  Consistency (sigma): {overall1['std_corrected']:.3f}s")
     
     print(f"\n{driver2} ({drivers_info[driver2]}):")
     print(f"  Average raw pace: {overall2['avg_raw']:.3f}s")
     print(f"  Fuel-corrected pace: {overall2['avg_corrected']:.3f}s")
-    print(f"  Consistency (σ): {overall2['std_corrected']:.3f}s")
+    print(f"  Consistency (sigma): {overall2['std_corrected']:.3f}s")
     
     pace_diff = overall1['avg_corrected'] - overall2['avg_corrected']
     faster_driver = driver1 if pace_diff < 0 else driver2
@@ -384,11 +384,11 @@ if overall1 and overall2:
         print(f"  Laps needed to overcome pit loss: {laps_needed:.1f} laps")
         
         if laps_needed < 10:
-            print(f"  → STRONG undercut potential (< 10 laps)")
+            print(f"  -> STRONG undercut potential (< 10 laps)")
         elif laps_needed < 15:
-            print(f"  → MODERATE undercut potential")
+            print(f"  -> MODERATE undercut potential")
         else:
-            print(f"  → WEAK undercut potential (> 15 laps)")
+            print(f"  -> WEAK undercut potential (> 15 laps)")
     
     # Overcut: Driver 2 stays out
     if overall2['avg_corrected'] < overall1['avg_corrected']:
@@ -637,7 +637,7 @@ fig.suptitle(f'Race Pace Analysis: {drivers_info[driver1]} vs {drivers_info[driv
 # Save
 filename = f'output_race_pace/{gp}_{year}_{driver1}_vs_{driver2}_pace.png'
 plt.savefig(filename, dpi=300, bbox_inches='tight')
-print(f"\n✓ Visualization saved: {filename}")
+print(f"\n[SUCCESS] Visualization saved: {filename}")
 
 plt.show(block=True)
 
@@ -648,13 +648,13 @@ print(f"\nKey Findings:")
 if overall1 and overall2:
     pace_diff = overall1['avg_corrected'] - overall2['avg_corrected']
     faster = driver1 if pace_diff < 0 else driver2
-    print(f"  • {drivers_info[faster]} had better fuel-corrected pace")
-    print(f"  • Pace difference: {abs(pace_diff):.3f}s per lap")
-    print(f"  • Over full race: {abs(pace_diff) * total_race_laps:.1f}s advantage")
+    print(f"  * {drivers_info[faster]} had better fuel-corrected pace")
+    print(f"  * Pace difference: {abs(pace_diff):.3f}s per lap")
+    print(f"  * Over full race: {abs(pace_diff) * total_race_laps:.1f}s advantage")
     
     if overall1['std_corrected'] < overall2['std_corrected']:
-        print(f"  • {driver1} was more consistent (σ={overall1['std_corrected']:.3f}s)")
+        print(f"  * {driver1} was more consistent (sigma={overall1['std_corrected']:.3f}s)")
     else:
-        print(f"  • {driver2} was more consistent (σ={overall2['std_corrected']:.3f}s)")
+        print(f"  * {driver2} was more consistent (sigma={overall2['std_corrected']:.3f}s)")
 
 print(f"\n{'='*70}\n")

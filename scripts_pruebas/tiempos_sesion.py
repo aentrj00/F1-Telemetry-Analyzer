@@ -244,7 +244,7 @@ print("=" * 60)
 print("\nInterpretacion:")
 print("  - Eje X: Tiempo transcurrido de sesion")
 print("  - Eje Y: Tiempo de cada vuelta")
-print("  - Estrella verde: Vuelta mas rapida")
+print("  - Green Star: Vuelta mas rapida")
 if has_compound:
     print("  - Colores: Compuesto de neumatico usado")
     print("    * Rojo = Blando | Amarillo = Medio | Blanco = Duro")
