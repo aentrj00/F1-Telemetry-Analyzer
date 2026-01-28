@@ -26,7 +26,7 @@ def run_analysis(year, gp, driver, train_all, race_only):
             
             # Run script
             st.info(" Training ML model...")
-            st.info(" This may take 2-4 minutes...")
+            st.info(" This may take +-10 minutes...")
             
             process = subprocess.Popen(
                 [sys.executable, str(script_path)],
